@@ -1,0 +1,34 @@
+[
+  {
+    "id": "char-1",
+    "name": "Khalid ibn al-Walid",
+    "picture": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80",
+    "rating": 1000,
+    "description": "Sayf Allah al-Maslul (The Drawn Sword of Allah)",
+    "updatedAt": 1700000000000
+  },
+  {
+    "id": "char-2",
+    "name": "Salahuddin al-Ayyubi",
+    "picture": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80",
+    "rating": 980,
+    "description": "The Liberator of Jerusalem",
+    "updatedAt": 1700000000000
+  },
+  {
+    "id": "char-3",
+    "name": "Umar ibn al-Khattab",
+    "picture": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80",
+    "rating": 990,
+    "description": "Al-Faruq (The Distinguisher of Truth)",
+    "updatedAt": 1700000000000
+  },
+  {
+    "id": "char-4",
+    "name": "Tariq ibn Ziyad",
+    "picture": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
+    "rating": 950,
+    "description": "Conqueror of Hispania and commander of the Strait of Gibraltar",
+    "updatedAt": 1700000000000
+  }
+]

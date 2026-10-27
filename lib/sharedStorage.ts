@@ -47,7 +47,23 @@ const DEFAULT_CHARACTERS: SharedCharacter[] = [
 
 const LOCAL_DATA_FILE = path.join(process.cwd(), 'data', 'characters.json');
 
-// Ensure data directory exists for local persistence fallback
+// Reads local seed file if present, else DEFAULT_CHARACTERS
+function getInitialSeedCharacters(): SharedCharacter[] {
+  try {
+    if (fs.existsSync(LOCAL_DATA_FILE)) {
+      const content = fs.readFileSync(LOCAL_DATA_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed as SharedCharacter[];
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_CHARACTERS;
+}
+
+// Ensure data directory exists for local persistence
 function ensureLocalDataDir() {
   const dir = path.dirname(LOCAL_DATA_FILE);
   if (!fs.existsSync(dir)) {
@@ -57,8 +73,11 @@ function ensureLocalDataDir() {
 
 /**
  * Gets shared characters list from Netlify Blobs (if on Netlify) or local server file persistence.
+ * Automatically seeds Netlify Blobs if empty.
  */
 export async function getSharedCharacters(): Promise<SharedCharacter[]> {
+  const seed = getInitialSeedCharacters();
+
   // 1. Try Netlify Blobs if in Netlify runtime
   if (process.env.NETLIFY || process.env.NETLIFY_BLOBS_CONTEXT) {
     try {
@@ -68,6 +87,9 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
       if (Array.isArray(jsonStr) && jsonStr.length > 0) {
         return jsonStr as SharedCharacter[];
       }
+      // Auto-seed Netlify Blobs with committed seed
+      await store.setJSON('characters', seed);
+      return seed;
     } catch {
       // Fallback to local file store if Netlify Blob store isn't bound yet
     }
@@ -83,13 +105,13 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
         return parsed as SharedCharacter[];
       }
     } catch {
-      // If corrupted, fallback to DEFAULT_CHARACTERS
+      // ignore
     }
   }
 
   // Initial seed write to local store
-  saveLocalCharacters(DEFAULT_CHARACTERS);
-  return DEFAULT_CHARACTERS;
+  saveLocalCharacters(seed);
+  return seed;
 }
 
 /**
@@ -120,6 +142,6 @@ function saveLocalCharacters(characters: SharedCharacter[]) {
     ensureLocalDataDir();
     fs.writeFileSync(LOCAL_DATA_FILE, JSON.stringify(characters, null, 2), 'utf-8');
   } catch {
-    // ignore filesystem errors
+    // ignore filesystem errors in read-only environments
   }
 }
