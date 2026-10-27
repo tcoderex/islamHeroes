@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme } from '@/lib/theme';
+import HonorBadge from './HonorBadge';
 
 export interface CustomCharacter {
   id: string;
@@ -710,13 +711,53 @@ export default function CharactersView({
               <div
                 key={char.id}
                 onClick={() => onPreviewCharacter?.(char)}
-                className={`relative flex flex-row md:flex-col items-center md:items-stretch gap-3 md:gap-4 p-3 md:p-5 backdrop-blur-xl border rounded-2xl md:rounded-3xl transition-all duration-200 group cursor-pointer active:scale-[0.99] md:hover:-translate-y-1.5 ${
+                className={`relative flex flex-row md:flex-col items-center md:items-stretch gap-3 md:gap-4 p-3 pt-12 sm:pt-14 md:p-5 md:pt-14 backdrop-blur-xl border rounded-2xl md:rounded-3xl transition-all duration-200 group cursor-pointer active:scale-[0.99] md:hover:-translate-y-1.5 ${
                   theme === 'ramadan'
                     ? 'bg-[#0f1e2c]/95 border-amber-500/25 shadow-[0_4px_20px_rgba(245,158,11,0.06)] hover:border-amber-400/60 md:hover:shadow-2xl'
                     : 'bg-white/95 border-slate-200/90 shadow-[0_4px_16px_rgba(0,103,192,0.05)] hover:border-blue-300 md:hover:shadow-xl'
                 }`}
               >
-                {/* 1. Picture Frame: Compact on mobile, expansive artwork frame on PC */}
+                {/* 1. TOP-LEFT: Honor Badge (Angel for 750+, Islamic Leader Gift Badge for 500-750) - ONLY ICONS NO TEXT */}
+                <HonorBadge
+                  rating={char.rating}
+                  isAr={isAr}
+                  className="absolute top-2.5 left-2.5 md:top-3 md:left-3.5 z-30"
+                />
+
+                {/* 2. MIDDLE-TOP: Rating placed in the middle top */}
+                <div
+                  className={`absolute top-2.5 md:top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border backdrop-blur-md shadow-md ${charTier.bgLight} ${charTier.borderColor} ${charTier.textColor} whitespace-nowrap`}
+                >
+                  <TierIcon tierKey={charTier.key} className="w-3.5 h-3.5" />
+                  <span>{char.rating > 0 ? `+${char.rating}` : char.rating}</span>
+                </div>
+
+                {/* 3. TOP-RIGHT: Action Buttons (Edit & Delete) */}
+                <div
+                  className={`absolute top-2.5 right-2.5 md:top-3 md:right-3.5 flex items-center gap-1 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-0.5 md:p-1 rounded-xl shadow-xs border border-slate-200/90 ${
+                    theme === 'ramadan' ? 'bg-[#0c1825]/90 border-amber-500/40' : ''
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleStartEdit(char)}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-[#0067c0] hover:bg-blue-50 dark:hover:bg-amber-500/20 transition-all cursor-pointer"
+                    title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
+                  >
+                    <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteCharacter(char.id)}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/20 transition-all cursor-pointer"
+                    title={isAr ? 'حذف الشخصية' : 'Delete'}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  </button>
+                </div>
+
+                {/* Picture Frame: Compact on mobile, expansive artwork frame on PC */}
                 <div
                   className={`relative w-14 h-14 sm:w-16 sm:h-16 md:w-full md:h-60 lg:h-68 rounded-xl md:rounded-2xl overflow-hidden shrink-0 border shadow-2xs md:shadow-sm ${
                     theme === 'ramadan'
@@ -745,22 +786,12 @@ export default function CharactersView({
                     </div>
                   )}
 
-                  {/* PC Only: Floating Moral Alignment Badge directly on photo */}
-                  <div
-                    className={`hidden md:flex absolute bottom-3 ${
-                      isAr ? 'right-3' : 'left-3'
-                    } items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold border backdrop-blur-md shadow-md ${charTier.bgLight} ${charTier.borderColor} ${charTier.textColor}`}
-                  >
-                    <TierIcon tierKey={charTier.key} className="w-3.5 h-3.5" />
-                    <span>{char.rating > 0 ? `+${char.rating}` : char.rating}</span>
-                  </div>
-
                   {/* PC Only: Subtle shadow gradient at bottom of picture */}
                   <div className="hidden md:block absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent pointer-events-none" />
                 </div>
 
-                {/* 2. Character Details: Name, Description, and Tier */}
-                <div className="min-w-0 flex-1 pr-14 pl-2 md:p-0 md:flex-1 md:flex md:flex-col md:justify-between">
+                {/* Character Details: Name, Description, and Tier */}
+                <div className="min-w-0 flex-1 md:p-0 md:flex-1 md:flex md:flex-col md:justify-between">
                   <div>
                     <h3
                       className={`text-sm sm:text-base md:text-xl lg:text-2xl font-bold md:font-extrabold transition-colors truncate md:line-clamp-1 ${
@@ -791,19 +822,6 @@ export default function CharactersView({
                     )}
                   </div>
 
-                  {/* Mobile Only: Inline Rating Tier Pill */}
-                  <div className="md:hidden mt-1.5 flex items-center gap-1.5">
-                    <div
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold border ${charTier.bgLight} ${charTier.borderColor} ${charTier.textColor}`}
-                    >
-                      <TierIcon tierKey={charTier.key} className="w-3.5 h-3.5" />
-                      <span>{char.rating > 0 ? `+${char.rating}` : char.rating}</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-medium">
-                      {isAr ? charTier.nameAr.split('/')[0] : charTier.nameEn.split('/')[0]}
-                    </span>
-                  </div>
-
                   {/* PC Only: Dedicated Bottom Status & Preview Hint */}
                   <div
                     className={`hidden md:flex items-center justify-between pt-3 mt-3 border-t w-full text-xs ${
@@ -832,33 +850,6 @@ export default function CharactersView({
                       <span className={isAr ? 'rotate-180' : ''}>→</span>
                     </span>
                   </div>
-                </div>
-
-                {/* Action Buttons: Edit & Delete beside each other - elevated glass capsule on PC */}
-                <div
-                  className={`absolute top-2.5 md:top-3.5 ${
-                    isAr ? 'left-2.5 md:left-3.5' : 'right-2.5 md:right-3.5'
-                  } flex items-center gap-1 z-20 md:bg-white/95 md:dark:bg-slate-900/90 md:backdrop-blur-md md:p-1 md:rounded-xl md:shadow-md md:border md:border-slate-200/90 ${
-                    theme === 'ramadan' ? 'md:bg-[#0c1825]/90 md:border-amber-500/40' : ''
-                  }`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleStartEdit(char)}
-                    className="p-1.5 md:p-2 rounded-lg text-slate-500 hover:text-[#0067c0] hover:bg-blue-50 dark:hover:bg-amber-500/20 opacity-80 group-hover:opacity-100 transition-all cursor-pointer"
-                    title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
-                  >
-                    <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDeleteCharacter(char.id)}
-                    className="p-1.5 md:p-2 rounded-lg text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/20 opacity-80 group-hover:opacity-100 transition-all cursor-pointer"
-                    title={isAr ? 'حذف الشخصية' : 'Delete'}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  </button>
                 </div>
               </div>
             );

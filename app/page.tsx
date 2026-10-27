@@ -7,6 +7,7 @@ import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal from '@/components/AdminSettingsModal';
 import CharactersView, { CustomCharacter, SortOption } from '@/components/CharactersView';
 import CharacterPreviewModal, { PreviewableCharacter } from '@/components/CharacterPreviewModal';
+import HonorBadge from '@/components/HonorBadge';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme, THEMES } from '@/lib/theme';
 
@@ -872,12 +873,27 @@ export default function HomePage() {
                                 handlePreviewCustomCharacter(item.rawCustom);
                               }
                             }}
-                            className={`p-3 sm:p-3.5 md:p-5 rounded-xl md:rounded-3xl border flex flex-row md:flex-col items-center md:items-stretch justify-between md:justify-start gap-3 md:gap-4 cursor-pointer transition-all duration-200 active:scale-[0.99] group shadow-2xs md:shadow-md md:hover:shadow-xl md:hover:-translate-y-1.5 ${
+                            className={`relative p-3 pt-12 sm:pt-14 md:p-5 md:pt-14 rounded-2xl md:rounded-3xl border flex flex-row md:flex-col items-center md:items-stretch justify-between md:justify-start gap-3 md:gap-4 cursor-pointer transition-all duration-200 active:scale-[0.99] group shadow-2xs md:shadow-md md:hover:shadow-xl md:hover:-translate-y-1.5 ${
                               isRamadan
                                 ? 'bg-[#0f1f2d]/85 hover:bg-[#142838] border-amber-500/20 hover:border-amber-400/50 text-amber-50'
                                 : 'bg-slate-50/70 hover:bg-white border-slate-200/70 hover:border-blue-300 text-slate-900'
                             }`}
                           >
+                            {/* 1. TOP-LEFT: Honor Badge (Angel for 750+, Islamic Leader Gift Badge for 500-750) - ONLY ICONS NO TEXT */}
+                            <HonorBadge
+                              rating={item.rating}
+                              isAr={isAr}
+                              className="absolute top-2.5 left-2.5 md:top-3 md:left-3.5 z-30"
+                            />
+
+                            {/* 2. MIDDLE-TOP: Rating placed in the middle top */}
+                            <div
+                              className={`absolute top-2.5 md:top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border backdrop-blur-md shadow-md ${tier.bgLight} ${tier.borderColor} ${tier.textColor} whitespace-nowrap`}
+                            >
+                              <TierIcon tierKey={tier.key} className="w-3.5 h-3.5" />
+                              <span>{item.rating > 0 ? `+${item.rating}` : item.rating}</span>
+                            </div>
+
                             {/* Mobile Layout Left Section (Image + Text) / PC Image Container */}
                             <div className="flex flex-row md:flex-col items-center md:items-stretch gap-3 md:gap-0 min-w-0 flex-1 md:flex-initial">
                               {/* Character Picture Frame: Normal square on mobile, large showcase frame on PC */}
@@ -907,16 +923,6 @@ export default function HomePage() {
                                     <span>{item.name.charAt(0)}</span>
                                   </div>
                                 )}
-
-                                {/* PC Only: Top Floating 5-Tier Moral Badge directly on the picture */}
-                                <div
-                                  className={`hidden md:flex absolute top-3 ${
-                                    isAr ? 'left-3' : 'right-3'
-                                  } items-center gap-1.5 font-mono text-xs font-bold px-2.5 py-1 rounded-xl backdrop-blur-md shadow-md border ${tier.bgLight} ${tier.borderColor} ${tier.textColor}`}
-                                >
-                                  <TierIcon tierKey={tier.key} className="w-3.5 h-3.5" />
-                                  <span>{item.rating > 0 ? `+${item.rating}` : item.rating}</span>
-                                </div>
 
                                 {/* PC Only: Bottom Vignette on Picture for smooth contrast */}
                                 <div className="hidden md:block absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent pointer-events-none" />
@@ -969,23 +975,6 @@ export default function HomePage() {
                                   </span>
                                 )}
                               </div>
-                            </div>
-
-                            {/* Mobile Only: 5-Tier Moral Rating Badge on right */}
-                            <div className="md:hidden flex flex-col items-end gap-0.5 shrink-0">
-                              <div
-                                className={`flex items-center gap-1.5 font-mono text-xs font-bold px-2 py-1 rounded-lg border shadow-2xs ${tier.bgLight} ${tier.borderColor} ${tier.textColor}`}
-                              >
-                                <TierIcon tierKey={tier.key} className="w-3.5 h-3.5" />
-                                <span>{item.rating > 0 ? `+${item.rating}` : item.rating}</span>
-                              </div>
-                              <span
-                                className={`text-[10px] font-medium ${
-                                  isRamadan ? 'text-amber-200/50' : 'text-slate-400'
-                                }`}
-                              >
-                                {isAr ? tier.nameAr.split('/')[0] : tier.nameEn.split('/')[0]}
-                              </span>
                             </div>
 
                             {/* PC Only: Dedicated Bottom Action / Info Bar */}

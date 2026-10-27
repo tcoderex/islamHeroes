@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, Clock } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
+import HonorBadge from '@/components/HonorBadge';
 
 export interface PreviewableCharacter {
   id: string;
@@ -103,18 +104,21 @@ export default function CharacterPreviewModal({
         {/* Modal Body */}
         <div className="p-4 sm:p-5 md:p-6 space-y-4 flex-1 overflow-y-auto flex flex-col justify-between">
           <div>
-            {/* Header: Name, Secondary Name, and Tier Badge */}
+            {/* Header: Name, Secondary Name, and Tier Badge + Honor Badge */}
             <div className="mb-3">
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-snug">
                   {character.name}
                 </h2>
-                {/* Thematic Tier Badge Pill */}
-                <div
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shadow-xs shrink-0 ${tier.badgeGradient}`}
-                >
-                  <TierIcon tierKey={tier.key} className="w-3.5 h-3.5" />
-                  <span>{isAr ? tier.nameAr : tier.nameEn}</span>
+                {/* Thematic Tier Badge Pill & Honor Badge */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <HonorBadge rating={rating} isAr={isAr} size="sm" />
+                  <div
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shadow-xs ${tier.badgeGradient}`}
+                  >
+                    <TierIcon tierKey={tier.key} className="w-3.5 h-3.5" />
+                    <span>{isAr ? tier.nameAr : tier.nameEn}</span>
+                  </div>
                 </div>
               </div>
 
