@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node -e \"require('fs').writeFileSync('.next/.assetsignore', 'cache\\n*.pack\\nnode_modules\\n')\"",
     "start": "next start",
     "lint": "eslint .",
     "clean": "next clean"
