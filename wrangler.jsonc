@@ -6,7 +6,6 @@
     "nodejs_compat"
   ],
   "assets": {
-    "directory": ".next",
-    "binding": "ASSETS"
+    "directory": ".next"
   }
 }

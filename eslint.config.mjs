@@ -1,13 +1,19 @@
-import { defineConfig } from "eslint/config";
-import next from "eslint-config-next";
+import { FlatCompat } from "@eslint/eslintrc";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export default defineConfig([
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
+const eslintConfig = [
   {
     ignores: [".cloudflare/**", ".next/**", "dist/**", "node_modules/**"],
   },
-  {
-    extends: [...next],
-  },
-]);
+  ...compat.extends("next/core-web-vitals"),
+];
+
+export default eslintConfig;
