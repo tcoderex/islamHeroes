@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, Award } from 'lucide-react';
+import Image from 'next/image';
 
 export type HonorTier = 'angel' | 'islamic-leader' | null;
 
@@ -25,7 +25,8 @@ interface HonorBadgeProps {
 }
 
 /**
- * Renders ONLY the icon on the top-left (no visible text), with rich tooltips and accessible labels.
+ * Renders ONLY the authentic AI-generated icon on the top-left (no visible text),
+ * with glowing rings and rich accessible tooltips.
  */
 export default function HonorBadge({
   rating,
@@ -38,25 +39,20 @@ export default function HonorBadge({
 
   const sizeClasses =
     size === 'sm'
-      ? 'w-7 h-7'
+      ? 'w-7 h-7 sm:w-8 sm:h-8'
       : size === 'lg'
-        ? 'w-9 h-9 md:w-10 md:h-10'
-        : 'w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9';
+        ? 'w-11 h-11 sm:w-12 sm:h-12'
+        : 'w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10';
 
-  const iconSizes =
-    size === 'sm'
-      ? 'w-3.5 h-3.5'
-      : size === 'lg'
-        ? 'w-5 h-5'
-        : 'w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5';
+  const defaultPosition = className.includes('absolute') || className.includes('fixed') ? '' : 'relative';
 
   if (honor === 'angel') {
     return (
       <div
-        className={`relative group/honor flex items-center justify-center rounded-full bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-sky-500/35 border border-sky-200/90 ring-2 ring-sky-300/40 backdrop-blur-md select-none shrink-0 transition-transform duration-200 hover:scale-110 ${sizeClasses} ${className}`}
+        className={`${defaultPosition} group/honor rounded-full shrink-0 select-none transition-transform duration-200 hover:scale-115 ring-2 ring-sky-300 shadow-[0_0_18px_rgba(56,189,248,0.8),0_4px_12px_rgba(0,0,0,0.7)] overflow-hidden bg-slate-950 ${sizeClasses} ${className}`}
         title={
           isAr
-            ? 'أهل الثقة والأمانة (رتبة ملائكية نورانية +750)'
+            ? 'وسام أهل الثقة والأمانة (رتبة ملائكية نورانية +750)'
             : 'Best Trusted People (Angelic Tier 750+)'
         }
         aria-label={
@@ -65,9 +61,16 @@ export default function HonorBadge({
             : 'Angelic Best Trusted People Badge'
         }
       >
-        {/* Angelic Radiant Halo effect above icon */}
-        <span className="absolute -top-1 w-3.5 md:w-4 h-1 rounded-full border border-sky-200 bg-sky-200/70 shadow-[0_0_8px_rgba(186,230,253,0.8)] pointer-events-none" />
-        <Sparkles className={`${iconSizes} text-sky-100 fill-sky-200/50 drop-shadow-xs`} />
+        <Image
+          src="/images/angel_badge.jpg"
+          alt="Angelic Badge"
+          fill
+          sizes="64px"
+          referrerPolicy="no-referrer"
+          className="object-cover"
+        />
+        {/* Subtle celestial shimmer overlay */}
+        <span className="absolute inset-0 rounded-full ring-1 ring-inset ring-white/60 pointer-events-none" />
       </div>
     );
   }
@@ -75,17 +78,24 @@ export default function HonorBadge({
   // Islamic Leader Honor Gift Badge (501 to 750)
   return (
     <div
-      className={`relative group/honor flex items-center justify-center rounded-full bg-gradient-to-br from-amber-400 via-emerald-600 to-teal-800 text-white shadow-lg shadow-emerald-600/35 border border-amber-300/90 ring-2 ring-amber-400/40 backdrop-blur-md select-none shrink-0 transition-transform duration-200 hover:scale-110 ${sizeClasses} ${className}`}
+      className={`${defaultPosition} group/honor rounded-full shrink-0 select-none transition-transform duration-200 hover:scale-115 ring-2 ring-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.8),0_4px_12px_rgba(0,0,0,0.7)] overflow-hidden bg-slate-950 ${sizeClasses} ${className}`}
       title={
         isAr
-          ? 'قائد إسلامي (وسام وهدية شرف +500 إلى 750)'
+          ? 'وسام قائد إسلامي (هدية شرفية +500 إلى 750)'
           : 'Islamic Leader Honor Gift Badge (500 to 750)'
       }
-      aria-label={
-        isAr ? 'وسام قائد إسلامي' : 'Islamic Leader Honor Badge'
-      }
+      aria-label={isAr ? 'وسام قائد إسلامي' : 'Islamic Leader Honor Badge'}
     >
-      <Award className={`${iconSizes} text-amber-200 fill-amber-300/40 drop-shadow-xs`} />
+      <Image
+        src="/images/islamic_leader_badge.jpg"
+        alt="Islamic Leader Badge"
+        fill
+        sizes="64px"
+        referrerPolicy="no-referrer"
+        className="object-cover"
+      />
+      {/* Subtle gold shimmer overlay */}
+      <span className="absolute inset-0 rounded-full ring-1 ring-inset ring-amber-200/60 pointer-events-none" />
     </div>
   );
 }

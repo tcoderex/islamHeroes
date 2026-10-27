@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X, Clock } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import HonorBadge from '@/components/HonorBadge';
+import GlowingScoreBadge from '@/components/GlowingScoreBadge';
 
 export interface PreviewableCharacter {
   id: string;
@@ -67,6 +68,21 @@ export default function CharacterPreviewModal({
 
         {/* Uncropped Photo Viewport: Image fits fully without zooming or cropping */}
         <div className="relative w-full md:w-5/12 h-56 sm:h-64 md:h-auto md:min-h-[380px] bg-slate-950 flex items-center justify-center overflow-hidden p-2 select-none shrink-0">
+          {/* Top-Left Honor Badge */}
+          <HonorBadge
+            rating={rating}
+            isAr={isAr}
+            size="md"
+            className="absolute top-3 left-3 z-30"
+          />
+
+          {/* Top-Middle Glowing Score Badge */}
+          <GlowingScoreBadge
+            rating={rating}
+            size="md"
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-30"
+          />
+
           {character.picture && !imgError ? (
             <>
               {/* Ambient blurred backdrop for seamless visual framing */}

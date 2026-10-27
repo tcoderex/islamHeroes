@@ -18,6 +18,7 @@ import {
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme } from '@/lib/theme';
 import HonorBadge from './HonorBadge';
+import GlowingScoreBadge from './GlowingScoreBadge';
 
 export interface CustomCharacter {
   id: string;
@@ -69,7 +70,6 @@ export default function CharactersView({
   const ITEMS_PER_PAGE = 6;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const jsonInputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
 
   const currentTier = getRatingTier(rating);
@@ -163,95 +163,6 @@ export default function CharactersView({
     reader.readAsDataURL(file);
   };
 
-  // Export characters to a JSON file
-  const handleExportJSON = () => {
-    if (characters.length === 0) {
-      onShowToast?.(isAr ? 'لا توجد شخصيات لتصديرها' : 'No characters to export');
-      return;
-    }
-
-    try {
-      const jsonString = JSON.stringify(characters, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `heroes-characters-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      onShowToast?.(isAr ? 'تم تصدير ملف JSON بنجاح' : 'Exported characters to JSON file');
-    } catch {
-      onShowToast?.(isAr ? 'فشل تصدير الملف' : 'Failed to export JSON file');
-    }
-  };
-
-  // Import characters from a JSON file to restore
-  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (!Array.isArray(parsed)) {
-          throw new Error('Imported JSON is not an array');
-        }
-
-        const validList: CustomCharacter[] = parsed
-          .filter(
-            (item) =>
-              item &&
-              typeof item === 'object' &&
-              typeof item.name === 'string' &&
-              item.name.trim().length > 0
-          )
-          .map((item, idx) => ({
-            id:
-              typeof item.id === 'string' && item.id.trim()
-                ? item.id
-                : `imported-${Date.now()}-${idx}`,
-            name: String(item.name).trim(),
-            description:
-              typeof item.description === 'string' && item.description.trim()
-                ? item.description.trim()
-                : undefined,
-            picture: typeof item.picture === 'string' ? item.picture.trim() : '',
-            rating:
-              typeof item.rating === 'number' && !isNaN(item.rating)
-                ? Math.max(-1000, Math.min(1000, item.rating))
-                : 500,
-          }));
-
-        if (validList.length === 0) {
-          onShowToast?.(
-            isAr
-              ? 'الملف لا يحتوي على بيانات شخصيات صالحة'
-              : 'File does not contain valid character records'
-          );
-          return;
-        }
-
-        onImportCharacters?.(validList);
-      } catch {
-        onShowToast?.(
-          isAr
-            ? 'خطأ في معالجة ملف JSON'
-            : 'Error reading JSON file. Please check format.'
-        );
-      }
-    };
-
-    reader.onerror = () => {
-      onShowToast?.(isAr ? 'فشلت قراءة الملف' : 'Could not read the uploaded file');
-    };
-
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -306,16 +217,7 @@ export default function CharactersView({
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-5">
-      {/* Hidden JSON file input for Import */}
-      <input
-        ref={jsonInputRef}
-        type="file"
-        accept=".json,application/json"
-        onChange={handleImportJSON}
-        className="hidden"
-      />
-
-      {/* Top Action Bar with Settings, Export, Import, Sort & Add */}
+      {/* Top Action Bar with Settings, Sort & Add */}
       <div
         className={`p-3.5 sm:p-4 rounded-2xl backdrop-blur-xl border transition-all ${
           theme === 'ramadan'
@@ -693,13 +595,16 @@ export default function CharactersView({
               >
                 {isAr ? 'أضف أول شخصية' : 'Add First Character'}
               </button>
-              <button
-                type="button"
-                onClick={() => jsonInputRef.current?.click()}
-                className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-              >
-                {isAr ? 'استيراد من JSON' : 'Import from JSON'}
-              </button>
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>{isAr ? 'الإعدادات والنماذج' : 'Settings & Templates'}</span>
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -711,60 +616,17 @@ export default function CharactersView({
               <div
                 key={char.id}
                 onClick={() => onPreviewCharacter?.(char)}
-                className={`relative flex flex-row md:flex-col items-center md:items-stretch gap-3 md:gap-4 p-3 pt-12 sm:pt-14 md:p-5 md:pt-14 backdrop-blur-xl border rounded-2xl md:rounded-3xl transition-all duration-200 group cursor-pointer active:scale-[0.99] md:hover:-translate-y-1.5 ${
+                className={`relative flex flex-col rounded-2xl md:rounded-3xl border overflow-hidden backdrop-blur-xl transition-all duration-300 group cursor-pointer active:scale-[0.99] hover:-translate-y-1.5 ${
                   theme === 'ramadan'
-                    ? 'bg-[#0f1e2c]/95 border-amber-500/25 shadow-[0_4px_20px_rgba(245,158,11,0.06)] hover:border-amber-400/60 md:hover:shadow-2xl'
-                    : 'bg-white/95 border-slate-200/90 shadow-[0_4px_16px_rgba(0,103,192,0.05)] hover:border-blue-300 md:hover:shadow-xl'
+                    ? 'bg-[#0f1e2c]/95 border-amber-500/25 shadow-[0_8px_30px_rgba(245,158,11,0.08)] hover:border-amber-400/60 hover:shadow-[0_16px_40px_rgba(245,158,11,0.2)]'
+                    : 'bg-white/95 border-slate-200/90 shadow-[0_8px_25px_rgba(0,103,192,0.06)] hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(0,103,192,0.14)]'
                 }`}
               >
-                {/* 1. TOP-LEFT: Honor Badge (Angel for 750+, Islamic Leader Gift Badge for 500-750) - ONLY ICONS NO TEXT */}
-                <HonorBadge
-                  rating={char.rating}
-                  isAr={isAr}
-                  className="absolute top-2.5 left-2.5 md:top-3 md:left-3.5 z-30"
-                />
-
-                {/* 2. MIDDLE-TOP: Rating placed in the middle top */}
+                {/* Full-bleed Picture Frame: Picture covers the entire frame starting at the very top edge */}
                 <div
-                  className={`absolute top-2.5 md:top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border backdrop-blur-md shadow-md ${charTier.bgLight} ${charTier.borderColor} ${charTier.textColor} whitespace-nowrap`}
+                  className="relative w-full h-60 sm:h-68 md:h-76 lg:h-84 overflow-hidden shrink-0 select-none bg-slate-100"
                 >
-                  <TierIcon tierKey={charTier.key} className="w-3.5 h-3.5" />
-                  <span>{char.rating > 0 ? `+${char.rating}` : char.rating}</span>
-                </div>
-
-                {/* 3. TOP-RIGHT: Action Buttons (Edit & Delete) */}
-                <div
-                  className={`absolute top-2.5 right-2.5 md:top-3 md:right-3.5 flex items-center gap-1 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-0.5 md:p-1 rounded-xl shadow-xs border border-slate-200/90 ${
-                    theme === 'ramadan' ? 'bg-[#0c1825]/90 border-amber-500/40' : ''
-                  }`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleStartEdit(char)}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-[#0067c0] hover:bg-blue-50 dark:hover:bg-amber-500/20 transition-all cursor-pointer"
-                    title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
-                  >
-                    <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDeleteCharacter(char.id)}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/20 transition-all cursor-pointer"
-                    title={isAr ? 'حذف الشخصية' : 'Delete'}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  </button>
-                </div>
-
-                {/* Picture Frame: Compact on mobile, expansive artwork frame on PC */}
-                <div
-                  className={`relative w-14 h-14 sm:w-16 sm:h-16 md:w-full md:h-60 lg:h-68 rounded-xl md:rounded-2xl overflow-hidden shrink-0 border shadow-2xs md:shadow-sm ${
-                    theme === 'ramadan'
-                      ? 'bg-[#14283b] border-amber-500/30'
-                      : 'bg-slate-100 border-slate-200/70'
-                  }`}
-                >
+                  {/* 1. Main Picture: Absolute inset-0 ensures 100% full coverage from top to bottom with NO black gaps */}
                   {char.picture && !hasError ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -772,29 +634,64 @@ export default function CharactersView({
                       alt={char.name}
                       onError={() => handleImageError(char.id)}
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
+                      className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
                     <div
-                      className={`w-full h-full flex flex-col items-center justify-center font-bold text-lg md:text-5xl select-none ${
+                      className={`absolute inset-0 w-full h-full flex flex-col items-center justify-center font-bold text-3xl sm:text-5xl select-none ${
                         theme === 'ramadan'
                           ? 'bg-gradient-to-br from-[#122637] to-[#1a384f] text-amber-300'
-                          : 'bg-gradient-to-br from-blue-50 to-sky-100 text-[#0067c0]'
+                          : 'bg-gradient-to-br from-slate-100 to-sky-100 text-sky-500'
                       }`}
                     >
                       <span>{char.name.charAt(0).toUpperCase()}</span>
                     </div>
                   )}
 
-                  {/* PC Only: Subtle shadow gradient at bottom of picture */}
-                  <div className="hidden md:block absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent pointer-events-none" />
+                  {/* 2. ON PICTURE TOP-LEFT: Honor Badge (Only Icon, No Text) */}
+                  <HonorBadge
+                    rating={char.rating}
+                    isAr={isAr}
+                    size="md"
+                    className="absolute top-3 left-3 sm:top-3.5 sm:left-3.5 z-20"
+                  />
+
+                  {/* 3. ON PICTURE MIDDLE-TOP: Glowing Score Badge */}
+                  <GlowingScoreBadge
+                    rating={char.rating}
+                    size="md"
+                    className="absolute top-3 sm:top-3.5 left-1/2 -translate-x-1/2 z-20"
+                  />
+
+                  {/* 4. ON PICTURE TOP-RIGHT: Admin Actions (Edit & Delete) */}
+                  <div
+                    className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 flex items-center gap-1 z-20 bg-slate-950/75 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-white/20 text-white shadow-lg"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleStartEdit(char)}
+                      className="p-1 sm:p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
+                      title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
+                    >
+                      <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteCharacter(char.id)}
+                      className="p-1 sm:p-1.5 rounded-lg text-rose-300 hover:text-rose-100 hover:bg-rose-500/30 transition-all cursor-pointer"
+                      title={isAr ? 'حذف الشخصية' : 'Delete'}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Character Details: Name, Description, and Tier */}
-                <div className="min-w-0 flex-1 md:p-0 md:flex-1 md:flex md:flex-col md:justify-between">
+                <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
                   <div>
                     <h3
-                      className={`text-sm sm:text-base md:text-xl lg:text-2xl font-bold md:font-extrabold transition-colors truncate md:line-clamp-1 ${
+                      className={`text-base sm:text-lg md:text-xl font-bold transition-colors truncate ${
                         theme === 'ramadan'
                           ? 'text-amber-100 group-hover:text-amber-300'
                           : 'text-slate-900 group-hover:text-[#0067c0]'
@@ -805,15 +702,15 @@ export default function CharactersView({
 
                     {char.description ? (
                       <p
-                        className={`text-[11px] md:text-xs truncate md:line-clamp-2 md:whitespace-normal mt-0.5 md:mt-1.5 leading-relaxed ${
-                          theme === 'ramadan' ? 'text-amber-200/60' : 'text-slate-500'
+                        className={`text-xs sm:text-sm line-clamp-2 mt-1.5 leading-relaxed ${
+                          theme === 'ramadan' ? 'text-amber-200/70' : 'text-slate-600'
                         }`}
                       >
                         {char.description}
                       </p>
                     ) : (
                       <p
-                        className={`text-[10px] md:text-xs mt-0.5 md:mt-1.5 ${
+                        className={`text-xs mt-1.5 ${
                           theme === 'ramadan' ? 'text-amber-200/40' : 'text-slate-400'
                         }`}
                       >
@@ -822,9 +719,9 @@ export default function CharactersView({
                     )}
                   </div>
 
-                  {/* PC Only: Dedicated Bottom Status & Preview Hint */}
+                  {/* Bottom Status & Preview Hint */}
                   <div
-                    className={`hidden md:flex items-center justify-between pt-3 mt-3 border-t w-full text-xs ${
+                    className={`flex items-center justify-between pt-3 mt-4 border-t w-full text-xs ${
                       theme === 'ramadan'
                         ? 'border-amber-500/20 text-amber-200/80'
                         : 'border-slate-100 text-slate-500'
@@ -835,7 +732,7 @@ export default function CharactersView({
                         {isAr ? 'المرتبة:' : 'Tier:'}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded-md font-bold text-xs ${charTier.bgLight} ${charTier.textColor} border ${charTier.borderColor}`}
+                        className={`px-2.5 py-0.5 rounded-md font-bold text-xs ${charTier.bgLight} ${charTier.textColor} border ${charTier.borderColor}`}
                       >
                         {isAr ? charTier.nameAr : charTier.nameEn}
                       </span>

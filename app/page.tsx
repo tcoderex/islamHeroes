@@ -8,6 +8,7 @@ import AdminSettingsModal from '@/components/AdminSettingsModal';
 import CharactersView, { CustomCharacter, SortOption } from '@/components/CharactersView';
 import CharacterPreviewModal, { PreviewableCharacter } from '@/components/CharacterPreviewModal';
 import HonorBadge from '@/components/HonorBadge';
+import GlowingScoreBadge from '@/components/GlowingScoreBadge';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme, THEMES } from '@/lib/theme';
 
@@ -873,65 +874,65 @@ export default function HomePage() {
                                 handlePreviewCustomCharacter(item.rawCustom);
                               }
                             }}
-                            className={`relative p-3 pt-12 sm:pt-14 md:p-5 md:pt-14 rounded-2xl md:rounded-3xl border flex flex-row md:flex-col items-center md:items-stretch justify-between md:justify-start gap-3 md:gap-4 cursor-pointer transition-all duration-200 active:scale-[0.99] group shadow-2xs md:shadow-md md:hover:shadow-xl md:hover:-translate-y-1.5 ${
+                            className={`relative flex flex-col rounded-2xl md:rounded-3xl border overflow-hidden backdrop-blur-xl transition-all duration-300 active:scale-[0.99] group cursor-pointer hover:-translate-y-1.5 ${
                               isRamadan
-                                ? 'bg-[#0f1f2d]/85 hover:bg-[#142838] border-amber-500/20 hover:border-amber-400/50 text-amber-50'
-                                : 'bg-slate-50/70 hover:bg-white border-slate-200/70 hover:border-blue-300 text-slate-900'
+                                ? 'bg-[#0f1f2d]/90 hover:bg-[#142838] border-amber-500/25 hover:border-amber-400/60 text-amber-50 shadow-[0_8px_30px_rgba(245,158,11,0.08)] hover:shadow-[0_16px_40px_rgba(245,158,11,0.2)]'
+                                : 'bg-white/95 hover:bg-white border-slate-200/90 hover:border-blue-300 text-slate-900 shadow-[0_8px_25px_rgba(0,103,192,0.06)] hover:shadow-[0_16px_40px_rgba(0,103,192,0.14)]'
                             }`}
                           >
-                            {/* 1. TOP-LEFT: Honor Badge (Angel for 750+, Islamic Leader Gift Badge for 500-750) - ONLY ICONS NO TEXT */}
-                            <HonorBadge
-                              rating={item.rating}
-                              isAr={isAr}
-                              className="absolute top-2.5 left-2.5 md:top-3 md:left-3.5 z-30"
-                            />
-
-                            {/* 2. MIDDLE-TOP: Rating placed in the middle top */}
+                            {/* Full-bleed Picture Frame: Picture covers the entire frame starting at the very top edge */}
                             <div
-                              className={`absolute top-2.5 md:top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border backdrop-blur-md shadow-md ${tier.bgLight} ${tier.borderColor} ${tier.textColor} whitespace-nowrap`}
+                              className="relative w-full h-60 sm:h-68 md:h-76 lg:h-84 overflow-hidden shrink-0 select-none bg-slate-100"
                             >
-                              <TierIcon tierKey={tier.key} className="w-3.5 h-3.5" />
-                              <span>{item.rating > 0 ? `+${item.rating}` : item.rating}</span>
+                              {/* 1. Main Picture: Absolute inset-0 ensures 100% full coverage from top to bottom with NO black gaps */}
+                              {item.picture ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={item.picture}
+                                  alt={item.name}
+                                  referrerPolicy="no-referrer"
+                                  className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                                />
+                              ) : (
+                                <div
+                                  className={`absolute inset-0 w-full h-full flex flex-col items-center justify-center font-bold text-3xl sm:text-5xl select-none ${
+                                    isRamadan
+                                      ? 'text-amber-300 bg-gradient-to-br from-[#122637] to-[#1a384f]'
+                                      : 'text-sky-500 bg-gradient-to-br from-slate-100 to-sky-100'
+                                  }`}
+                                >
+                                  <span>{item.name.charAt(0)}</span>
+                                </div>
+                              )}
+
+                              {/* 2. ON PICTURE TOP-LEFT: Honor Badge (Only Icon, No Text) */}
+                              <HonorBadge
+                                rating={item.rating}
+                                isAr={isAr}
+                                size="md"
+                                className="absolute top-3 left-3 sm:top-3.5 sm:left-3.5 z-20"
+                              />
+
+                              {/* 3. ON PICTURE MIDDLE-TOP: Glowing Score Badge */}
+                              <GlowingScoreBadge
+                                rating={item.rating}
+                                size="md"
+                                className="absolute top-3 sm:top-3.5 left-1/2 -translate-x-1/2 z-20"
+                              />
+
+                              {/* 4. ON PICTURE TOP-RIGHT: Era / Category pill */}
+                              {item.rawHero?.era && (
+                                <div className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 z-20 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-semibold bg-slate-950/75 backdrop-blur-md text-amber-200/90 border border-white/15 shadow-sm max-w-[130px] truncate">
+                                  {isAr ? item.rawHero.era.ar : item.rawHero.era.en}
+                                </div>
+                              )}
                             </div>
 
-                            {/* Mobile Layout Left Section (Image + Text) / PC Image Container */}
-                            <div className="flex flex-row md:flex-col items-center md:items-stretch gap-3 md:gap-0 min-w-0 flex-1 md:flex-initial">
-                              {/* Character Picture Frame: Normal square on mobile, large showcase frame on PC */}
-                              <div
-                                className={`relative w-14 h-14 sm:w-16 sm:h-16 md:w-full md:h-60 lg:h-68 rounded-xl md:rounded-2xl overflow-hidden shrink-0 border shadow-2xs md:shadow-sm ${
-                                  isRamadan
-                                    ? 'bg-[#14283b] border-amber-500/30'
-                                    : 'bg-slate-100 border-slate-200'
-                                }`}
-                              >
-                                {item.picture ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={item.picture}
-                                    alt={item.name}
-                                    referrerPolicy="no-referrer"
-                                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
-                                  />
-                                ) : (
-                                  <div
-                                    className={`w-full h-full flex flex-col items-center justify-center font-bold text-base sm:text-lg md:text-5xl ${
-                                      isRamadan
-                                        ? 'text-amber-300 bg-gradient-to-br from-[#122637] to-[#1a384f]'
-                                        : 'text-[#0067c0] bg-gradient-to-br from-blue-50 to-sky-100'
-                                    }`}
-                                  >
-                                    <span>{item.name.charAt(0)}</span>
-                                  </div>
-                                )}
-
-                                {/* PC Only: Bottom Vignette on Picture for smooth contrast */}
-                                <div className="hidden md:block absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent pointer-events-none" />
-                              </div>
-
-                              {/* Character Details: Name, Title, and Description */}
-                              <div className="min-w-0 flex-1 md:mt-3.5">
+                            {/* Card Body: Details, Subtitle, Description, and Tier */}
+                            <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
+                              <div>
                                 <h3
-                                  className={`text-sm sm:text-base md:text-xl lg:text-2xl font-bold md:font-extrabold transition-colors leading-snug truncate md:line-clamp-1 ${
+                                  className={`text-base sm:text-lg md:text-xl font-bold transition-colors leading-snug truncate ${
                                     isRamadan
                                       ? 'text-amber-100 group-hover:text-amber-300'
                                       : 'text-slate-900 group-hover:text-[#0067c0]'
@@ -940,68 +941,61 @@ export default function HomePage() {
                                   {item.name}
                                 </h3>
 
-                                {isHero ? (
-                                  <>
-                                    <p
-                                      className={`text-xs md:text-sm font-semibold truncate md:mt-1 ${
-                                        isRamadan ? 'text-amber-400' : 'text-[#0067c0]'
-                                      }`}
-                                    >
-                                      {item.subtitle}
-                                    </p>
-                                    <p
-                                      className={`text-[11px] md:text-xs block truncate md:line-clamp-2 md:whitespace-normal md:mt-1.5 leading-relaxed ${
-                                        isRamadan ? 'text-amber-200/60' : 'text-slate-500'
-                                      }`}
-                                    >
-                                      {item.description}
-                                    </p>
-                                  </>
-                                ) : item.description ? (
+                                {item.subtitle && (
                                   <p
-                                    className={`text-xs md:text-xs font-medium truncate md:line-clamp-2 md:whitespace-normal md:mt-1.5 leading-relaxed ${
-                                      isRamadan ? 'text-amber-200/70' : 'text-slate-500'
+                                    className={`text-xs sm:text-sm font-semibold truncate mt-0.5 ${
+                                      isRamadan ? 'text-amber-400' : 'text-[#0067c0]'
+                                    }`}
+                                  >
+                                    {item.subtitle}
+                                  </p>
+                                )}
+
+                                {item.description ? (
+                                  <p
+                                    className={`text-xs sm:text-sm line-clamp-2 mt-1.5 leading-relaxed ${
+                                      isRamadan ? 'text-amber-200/70' : 'text-slate-600'
                                     }`}
                                   >
                                     {item.description}
                                   </p>
                                 ) : (
                                   <span
-                                    className={`text-[11px] block truncate mt-0.5 md:mt-1.5 ${
+                                    className={`text-xs block mt-1.5 ${
                                       isRamadan ? 'text-amber-200/50' : 'text-slate-400'
                                     }`}
                                   >
-                                    {isAr ? 'اضغط للمعاينة' : 'Click to preview'}
+                                    {isAr ? 'اضغط لعرض تفاصيل الشخصية' : 'Click to preview details'}
                                   </span>
                                 )}
                               </div>
-                            </div>
 
-                            {/* PC Only: Dedicated Bottom Action / Info Bar */}
-                            <div
-                              className={`hidden md:flex items-center justify-between pt-3 mt-auto border-t w-full text-xs ${
-                                isRamadan ? 'border-amber-500/20 text-amber-200/80' : 'border-slate-200/70 text-slate-500'
-                              }`}
-                            >
-                              <div className="flex items-center gap-1.5 font-semibold">
-                                <span className="text-[11px] text-slate-400">
-                                  {isAr ? 'المرتبة:' : 'Tier:'}
-                                </span>
-                                <span
-                                  className={`px-2 py-0.5 rounded-md font-bold text-xs ${tier.bgLight} ${tier.textColor} border ${tier.borderColor}`}
-                                >
-                                  {isAr ? tier.nameAr : tier.nameEn}
-                                </span>
-                              </div>
-
-                              <span
-                                className={`inline-flex items-center gap-1 font-bold text-xs group-hover:underline ${
-                                  isRamadan ? 'text-amber-300' : 'text-[#0067c0]'
+                              {/* Bottom Info / Status Bar */}
+                              <div
+                                className={`flex items-center justify-between pt-3 mt-4 border-t w-full text-xs ${
+                                  isRamadan ? 'border-amber-500/20 text-amber-200/80' : 'border-slate-100 text-slate-500'
                                 }`}
                               >
-                                <span>{isAr ? 'عرض التفاصيل' : 'View Details'}</span>
-                                <span className={isAr ? 'rotate-180' : ''}>→</span>
-                              </span>
+                                <div className="flex items-center gap-1.5 font-semibold">
+                                  <span className="text-[11px] text-slate-400">
+                                    {isAr ? 'المرتبة:' : 'Tier:'}
+                                  </span>
+                                  <span
+                                    className={`px-2.5 py-0.5 rounded-md font-bold text-xs ${tier.bgLight} ${tier.textColor} border ${tier.borderColor}`}
+                                  >
+                                    {isAr ? tier.nameAr : tier.nameEn}
+                                  </span>
+                                </div>
+
+                                <span
+                                  className={`inline-flex items-center gap-1 font-bold text-xs group-hover:underline ${
+                                    isRamadan ? 'text-amber-300' : 'text-[#0067c0]'
+                                  }`}
+                                >
+                                  <span>{isAr ? 'عرض التفاصيل' : 'View Details'}</span>
+                                  <span className={isAr ? 'rotate-180' : ''}>→</span>
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
