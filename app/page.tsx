@@ -55,7 +55,25 @@ export default function HomePage() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [characters, setCharacters] = useState<CustomCharacter[]>(DEFAULT_CHARACTERS);
 
-  // Restore client-persisted state safely post-hydration
+  // Load shared character database from server API (Netlify Blobs / Shared Server Store)
+  const fetchSharedCharacters = async () => {
+    try {
+      const res = await fetch('/api/characters');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.characters) && data.characters.length > 0) {
+        setCharacters(data.characters);
+        try {
+          localStorage.setItem('heroes_custom_characters', JSON.stringify(data.characters));
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // Fallback to localStorage if offline
+    }
+  };
+
+  // Restore client-persisted state safely post-hydration and sync with shared server API
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
@@ -77,6 +95,8 @@ export default function HomePage() {
       } catch {
         // ignore localStorage access errors
       }
+
+      fetchSharedCharacters();
     }, 0);
 
     return () => clearTimeout(timer);
@@ -117,7 +137,32 @@ export default function HomePage() {
     setIsAdminModalOpen(true);
   };
 
-  const handleAddCharacter = (newChar: Omit<CustomCharacter, 'id'>) => {
+  const handleAddCharacter = async (newChar: Omit<CustomCharacter, 'id'>) => {
+    try {
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newChar),
+      });
+      const data = await res.json();
+      if (data.success && data.characters) {
+        setCharacters(data.characters);
+        try {
+          localStorage.setItem('heroes_custom_characters', JSON.stringify(data.characters));
+        } catch {
+          // ignore
+        }
+        showToast(
+          isAr
+            ? 'تمت إضافة الشخصية بنجاح إلى قاعدة البيانات المشتركة'
+            : 'Character added to shared database'
+        );
+        return;
+      }
+    } catch {
+      // ignore, fallback local
+    }
+
     const created: CustomCharacter = {
       ...newChar,
       id: `char-${Date.now()}`,
@@ -132,7 +177,28 @@ export default function HomePage() {
     showToast(isAr ? 'تمت إضافة الشخصية بنجاح' : 'Character added successfully');
   };
 
-  const handleUpdateCharacter = (updatedChar: CustomCharacter) => {
+  const handleUpdateCharacter = async (updatedChar: CustomCharacter) => {
+    try {
+      const res = await fetch('/api/characters', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedChar),
+      });
+      const data = await res.json();
+      if (data.success && data.characters) {
+        setCharacters(data.characters);
+        try {
+          localStorage.setItem('heroes_custom_characters', JSON.stringify(data.characters));
+        } catch {
+          // ignore
+        }
+        showToast(isAr ? 'تم حفظ التعديلات بنجاح في قاعدة البيانات المشتركة' : 'Changes saved to shared database');
+        return;
+      }
+    } catch {
+      // ignore, fallback local
+    }
+
     const updated = characters.map((c) => (c.id === updatedChar.id ? updatedChar : c));
     setCharacters(updated);
     try {
@@ -143,7 +209,26 @@ export default function HomePage() {
     showToast(isAr ? 'تم حفظ التعديلات بنجاح' : 'Character updated successfully');
   };
 
-  const handleDeleteCharacter = (id: string) => {
+  const handleDeleteCharacter = async (id: string) => {
+    try {
+      const res = await fetch(`/api/characters?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success && data.characters) {
+        setCharacters(data.characters);
+        try {
+          localStorage.setItem('heroes_custom_characters', JSON.stringify(data.characters));
+        } catch {
+          // ignore
+        }
+        showToast(isAr ? 'تم حذف الشخصية من قاعدة البيانات المشتركة' : 'Character removed from shared database');
+        return;
+      }
+    } catch {
+      // ignore, fallback local
+    }
+
     const updated = characters.filter((c) => c.id !== id);
     setCharacters(updated);
     try {
@@ -154,7 +239,32 @@ export default function HomePage() {
     showToast(isAr ? 'تم حذف الشخصية' : 'Character removed');
   };
 
-  const handleImportCharacters = (imported: CustomCharacter[]) => {
+  const handleImportCharacters = async (imported: CustomCharacter[]) => {
+    try {
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characters: imported }),
+      });
+      const data = await res.json();
+      if (data.success && data.characters) {
+        setCharacters(data.characters);
+        try {
+          localStorage.setItem('heroes_custom_characters', JSON.stringify(data.characters));
+        } catch {
+          // ignore
+        }
+        showToast(
+          isAr
+            ? `تمت استعادة ${data.characters.length} شخصية في قاعدة البيانات المشتركة`
+            : `Restored ${data.characters.length} characters in shared database`
+        );
+        return;
+      }
+    } catch {
+      // ignore, fallback local
+    }
+
     setCharacters(imported);
     try {
       localStorage.setItem('heroes_custom_characters', JSON.stringify(imported));
@@ -182,12 +292,33 @@ export default function HomePage() {
     );
   };
 
-  const handleAppendCharacters = (newChars: CustomCharacter[]) => {
+  const handleAppendCharacters = async (newChars: CustomCharacter[]) => {
     const freshWithUniqueIds = newChars.map((c, i) => ({
       ...c,
       id: `azhar-${Date.now()}-${i}`,
     }));
     const updated = [...freshWithUniqueIds, ...characters];
+
+    try {
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characters: updated }),
+      });
+      const data = await res.json();
+      if (data.success && data.characters) {
+        setCharacters(data.characters);
+        try {
+          localStorage.setItem('heroes_custom_characters', JSON.stringify(data.characters));
+        } catch {
+          // ignore
+        }
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
     setCharacters(updated);
     try {
       localStorage.setItem('heroes_custom_characters', JSON.stringify(updated));
@@ -196,11 +327,32 @@ export default function HomePage() {
     }
   };
 
-  const handleReplaceCharacters = (newChars: CustomCharacter[]) => {
+  const handleReplaceCharacters = async (newChars: CustomCharacter[]) => {
     const freshWithUniqueIds = newChars.map((c, i) => ({
       ...c,
       id: `azhar-${Date.now()}-${i}`,
     }));
+
+    try {
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characters: freshWithUniqueIds }),
+      });
+      const data = await res.json();
+      if (data.success && data.characters) {
+        setCharacters(data.characters);
+        try {
+          localStorage.setItem('heroes_custom_characters', JSON.stringify(data.characters));
+        } catch {
+          // ignore
+        }
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
     setCharacters(freshWithUniqueIds);
     try {
       localStorage.setItem('heroes_custom_characters', JSON.stringify(freshWithUniqueIds));
