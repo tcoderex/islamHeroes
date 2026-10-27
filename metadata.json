@@ -1,0 +1,6 @@
+{
+  "name": "Heroes of the Islam",
+  "description": "Explore the noble lives, courage, and legacy of the heroes and great figures of Islam.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
