@@ -86,9 +86,22 @@ export default function CharactersView({
 
   const currentTier = getRatingTier(rating);
 
-  const quickPicks = isAr
-    ? ['خالد بن الوليد', 'صلاح الدين', 'عمر بن الخطاب', 'فاطمة الفهرية', 'علي بن أبي طالب', 'طارق بن زياد']
-    : ['Khalid ibn al-Walid', 'Salahuddin', 'Umar ibn al-Khattab', 'Fatima al-Fihri', 'Ali ibn Abi Talib', 'Tariq ibn Ziyad'];
+  const dynamicSuggestions = useMemo(() => {
+    if (!characters || characters.length === 0) return [];
+    return characters
+      .map((c) => {
+        const fullName = c.name.trim();
+        if (isAr) {
+          const arPart = fullName.split('(')[0].trim();
+          return arPart || fullName;
+        } else {
+          const match = fullName.match(/\(([^)]+)\)/);
+          return match ? match[1].trim() : fullName;
+        }
+      })
+      .filter((val, idx, arr) => val.length > 0 && arr.indexOf(val) === idx)
+      .slice(0, 6);
+  }, [characters, isAr]);
 
   const samplePictures = [
     'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
@@ -313,16 +326,16 @@ export default function CharactersView({
         </div>
 
         {/* Quick Suggestion Chips */}
-        {!searchQuery && (
+        {!searchQuery && dynamicSuggestions.length > 0 && (
           <div className="mt-3.5 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs">
             <span
               className={`text-[11px] sm:text-xs font-medium ${
                 isRamadan ? 'text-amber-300/60' : 'text-slate-400'
               }`}
             >
-              {isAr ? 'اقتراحات سريعة:' : 'Suggestions:'}
+              {isAr ? 'اقتراحات الشخصيات:' : 'Character Suggestions:'}
             </span>
-            {quickPicks.map((pick) => (
+            {dynamicSuggestions.map((pick) => (
               <button
                 key={pick}
                 type="button"
@@ -363,15 +376,17 @@ export default function CharactersView({
                 {isAr ? 'أبطال وشخصيات الإسلام' : 'Heroes of Islam Figures'}
               </h2>
 
-              {/* Supabase Status Pill */}
-              <div
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400"
-                title="Connected to Supabase PostgreSQL database"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <Database className="w-3 h-3" />
-                <span>Supabase Live</span>
-              </div>
+              {/* Supabase Status Pill - Only shown when admin is active */}
+              {isAdmin && dbStatus?.supabaseConnected && (
+                <div
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400"
+                  title="Connected to Supabase PostgreSQL database"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <Database className="w-3 h-3" />
+                  <span>Supabase Live</span>
+                </div>
+              )}
             </div>
 
             <p

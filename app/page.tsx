@@ -12,6 +12,10 @@ import {
   ChevronRight,
   ArrowUpDown,
   Database,
+  Mail,
+  ExternalLink,
+  Copy,
+  Check,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal from '@/components/AdminSettingsModal';
@@ -53,9 +57,34 @@ export default function HomePage() {
     url?: string;
   } | null>(null);
 
-  const quickPicks = isAr
-    ? ['خالد بن الوليد', 'صلاح الدين', 'عمر بن الخطاب', 'فاطمة الفهرية', 'علي بن أبي طالب', 'طارق بن زياد']
-    : ['Khalid ibn al-Walid', 'Salahuddin', 'Umar ibn al-Khattab', 'Fatima al-Fihri', 'Ali ibn Abi Talib', 'Tariq ibn Ziyad'];
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  const handleCopyEmail = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText('tcoderex@gmail.com');
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2000);
+    showToast(isAr ? 'تم نسخ الإيميل: tcoderex@gmail.com' : 'Copied email: tcoderex@gmail.com');
+  };
+
+  // Dynamically detect characters from the active database for suggestions
+  const dynamicSuggestions = useMemo(() => {
+    if (!characters || characters.length === 0) return [];
+    return characters
+      .map((c) => {
+        const fullName = c.name.trim();
+        if (isAr) {
+          const arPart = fullName.split('(')[0].trim();
+          return arPart || fullName;
+        } else {
+          const match = fullName.match(/\(([^)]+)\)/);
+          return match ? match[1].trim() : fullName;
+        }
+      })
+      .filter((val, idx, arr) => val.length > 0 && arr.indexOf(val) === idx)
+      .slice(0, 6);
+  }, [characters, isAr]);
 
   // Load shared character database from server API (Supabase / Netlify Blobs / Shared Server Store)
   const fetchSharedCharacters = async () => {
@@ -508,17 +537,14 @@ export default function HomePage() {
               >
                 {isAr ? 'أبطال الإسلام' : 'Heroes of the Islam'}
               </span>
-              {isAdmin ? (
+              {isAdmin && (
                 <span
-                  className={`text-[10px] font-semibold tracking-wider uppercase mt-0.5 ${
+                  className={`text-[10px] font-semibold tracking-wider uppercase mt-0.5 flex items-center gap-1 ${
                     isRamadan ? 'text-amber-400' : 'text-emerald-600'
                   }`}
                 >
-                  {isAr ? 'مشرف مفعل (انقر للقفل)' : 'Admin Active (Click to lock)'}
-                </span>
-              ) : (
-                <span className="text-[10px] text-slate-400 mt-0.5">
-                  {dbStatus?.supabaseConnected ? 'Supabase Live' : 'Global Database'}
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{isAr ? 'مشرف مفعل · Supabase Live' : 'Admin Active · Supabase Live'}</span>
                 </span>
               )}
             </div>
@@ -703,15 +729,59 @@ export default function HomePage() {
               >
                 {isAr ? 'أبطال الإسلام' : 'Heroes of the Islam'}
               </h1>
-              <p
-                className={`text-xs sm:text-sm lg:text-base max-w-xl mx-auto leading-relaxed ${
-                  isRamadan ? 'text-amber-200/70' : 'text-slate-500'
-                }`}
-              >
-                {isAr
-                  ? 'سير وأمجاد عظماء التاريخ الإسلامي مع ميزان الشخصية النوراني والشيطاني'
-                  : 'Explore historical figures with angelic and demonic alignment ratings synced with Supabase'}
-              </p>
+              {/* Contact / Removal notice with stylish email preview button */}
+              <div className="flex flex-col items-center justify-center gap-2 max-w-2xl mx-auto mt-2">
+                <p
+                  className={`text-xs sm:text-sm leading-relaxed ${
+                    isRamadan ? 'text-amber-200/85' : 'text-slate-600'
+                  }`}
+                >
+                  {isAr
+                    ? 'يمكن إذا أردت الاتصال بي أو حذف شخص عبر الإيميل هذا:'
+                    : 'If you wish, you can contact me or have someone removed via this email:'}
+                </p>
+
+                <div className="inline-flex items-center gap-1.5 p-1 rounded-2xl backdrop-blur-md border shadow-xs transition-all hover:shadow-md">
+                  <a
+                    href="mailto:tcoderex@gmail.com"
+                    className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                      isRamadan
+                        ? 'bg-[#0f2130] text-amber-200 hover:text-amber-100 hover:bg-[#152e42] border border-amber-500/30 shadow-amber-500/10'
+                        : 'bg-white text-[#0067c0] hover:bg-blue-50/80 border border-blue-200 shadow-2xs'
+                    }`}
+                    title={isAr ? 'اضغط لإرسال بريد إلكتروني' : 'Click to send an email'}
+                  >
+                    <span
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
+                        isRamadan
+                          ? 'bg-amber-400/20 text-amber-300'
+                          : 'bg-blue-100 text-[#0067c0]'
+                      }`}
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="font-mono tracking-tight font-bold text-xs sm:text-sm">
+                      tcoderex@gmail.com
+                    </span>
+                    <ExternalLink className="w-3 h-3 opacity-60 hover:opacity-100" />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyEmail}
+                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                      copiedEmail
+                        ? 'bg-emerald-500 text-white'
+                        : isRamadan
+                          ? 'text-amber-300 hover:bg-white/10'
+                          : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                    }`}
+                    title={isAr ? 'نسخ الإيميل' : 'Copy email address'}
+                  >
+                    {copiedEmail ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Prominent Search Bar */}
@@ -778,16 +848,16 @@ export default function HomePage() {
               </div>
 
               {/* Suggestions */}
-              {!searchQuery && (
+              {!searchQuery && dynamicSuggestions.length > 0 && (
                 <div className="mt-3.5 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs">
                   <span
                     className={`text-[11px] sm:text-xs font-medium ${
                       isRamadan ? 'text-amber-300/60' : 'text-slate-400'
                     }`}
                   >
-                    {isAr ? 'اقتراحات سريعة:' : 'Suggestions:'}
+                    {isAr ? 'اقتراحات الشخصيات:' : 'Character Suggestions:'}
                   </span>
-                  {quickPicks.map((pick) => (
+                  {dynamicSuggestions.map((pick) => (
                     <button
                       key={pick}
                       type="button"
@@ -828,7 +898,7 @@ export default function HomePage() {
                       : `All Figures (${characters.length})`}
                 </span>
 
-                {dbStatus?.supabaseConnected && (
+                {isAdmin && dbStatus?.supabaseConnected && (
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <Database className="w-3 h-3" />
