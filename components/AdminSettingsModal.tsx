@@ -17,6 +17,11 @@ import {
   ArrowRight,
   PlusCircle,
   RefreshCw,
+  Database,
+  Copy,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { AZHAR_SCHOLARS_TEMPLATE } from '@/lib/azhar-scholars-template';
@@ -49,9 +54,64 @@ export default function AdminSettingsModal({
   onShowToast,
   isAr,
 }: AdminSettingsModalProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'theme' | 'template' | 'backup'>('theme');
+  const [activeSubTab, setActiveSubTab] = useState<'theme' | 'template' | 'backup' | 'supabase'>('theme');
   const [showConfirmReplace, setShowConfirmReplace] = useState(false);
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const supabaseSqlSchema = `-- 1. Create characters table in public schema
+CREATE TABLE IF NOT EXISTS public.characters (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  picture TEXT DEFAULT '',
+  rating NUMERIC DEFAULT 0,
+  description TEXT,
+  updated_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)
+);
+
+-- 2. Enable Row Level Security (RLS)
+ALTER TABLE public.characters ENABLE ROW LEVEL SECURITY;
+
+-- 3. Set open policies for shared characters app
+CREATE POLICY "Public Read" ON public.characters FOR SELECT USING (true);
+CREATE POLICY "Public Insert" ON public.characters FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public Update" ON public.characters FOR UPDATE USING (true);
+CREATE POLICY "Public Delete" ON public.characters FOR DELETE USING (true);`;
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(supabaseSqlSchema);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 2500);
+    onShowToast(isAr ? 'تم نسخ استعلام SQL إلى الحافظة' : 'SQL Schema copied to clipboard');
+  };
+
+  const handleSyncToSupabase = async () => {
+    setIsSyncingSupabase(true);
+    try {
+      const res = await fetch('/api/supabase/seed', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        onShowToast(
+          isAr
+            ? `تمت مزامنة ${data.count} شخصية مع Supabase بنجاح!`
+            : `Synced ${data.count} figures with Supabase successfully!`
+        );
+      } else if (data.tableMissing) {
+        onShowToast(
+          isAr
+            ? 'يرجى إنشاء جدول characters أولاً في محرر Supabase SQL'
+            : 'Please run the SQL schema first in Supabase SQL editor'
+        );
+      } else {
+        onShowToast(data.error || (isAr ? 'فشلت المزامنة' : 'Sync failed'));
+      }
+    } catch {
+      onShowToast(isAr ? 'خطأ في الاتصال مع Supabase' : 'Connection error with Supabase');
+    } finally {
+      setIsSyncingSupabase(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -269,6 +329,26 @@ export default function AdminSettingsModal({
           >
             <Download className="w-4 h-4" />
             <span>{isAr ? 'النسخ الاحتياطي' : 'Export & Backup'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('supabase')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shrink-0 ${
+              activeSubTab === 'supabase'
+                ? isRamadan
+                  ? 'bg-amber-400 text-slate-950 shadow-sm font-bold'
+                  : 'bg-[#0067c0] text-white shadow-sm font-bold'
+                : isRamadan
+                  ? 'text-amber-200/70 hover:text-amber-100 hover:bg-white/5'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Database className="w-4 h-4 text-emerald-500" />
+            <span className="flex items-center gap-1.5">
+              <span>Supabase</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            </span>
           </button>
         </div>
 
@@ -676,6 +756,147 @@ export default function AdminSettingsModal({
                     <span>{isAr ? 'رفع ملف النسخة الاحتياطية' : 'Upload Backup File'}</span>
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: SUPABASE DATABASE */}
+          {activeSubTab === 'supabase' && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <Database className="w-4 h-4 text-emerald-500" />
+                  <span>{isAr ? 'قاعدة بيانات Supabase السحابية' : 'Supabase Cloud Database'}</span>
+                </h3>
+                <p
+                  className={`text-xs mt-1 ${
+                    isRamadan ? 'text-amber-200/60' : 'text-slate-500'
+                  }`}
+                >
+                  {isAr
+                    ? 'ربط مباشر مع قاعدة بيانات PostgreSQL على Supabase لمزامنة الشخصيات فورياً عبر جميع الأجهزة والمستخدمين.'
+                    : 'Direct connection to your PostgreSQL database on Supabase for real-time figure sync across all users.'}
+                </p>
+              </div>
+
+              {/* Connection Status Card */}
+              <div
+                className={`p-4 rounded-2xl border space-y-3 ${
+                  isRamadan
+                    ? 'border-emerald-500/30 bg-[#0c1f2b]'
+                    : 'border-emerald-200 bg-emerald-50/50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>{isAr ? 'تم الاتصال بمشروع Supabase بنجاح' : 'Connected to Supabase Project'}</span>
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-600/15 text-emerald-600 font-bold">
+                    tcoderex
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                  <div className="p-2 rounded-xl bg-white/70 dark:bg-black/30 border border-slate-200/60 dark:border-white/10">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Project URL:</span>
+                    <span className="text-[11px] text-slate-700 dark:text-slate-300 truncate block">
+                      https://lezucbsacxcygxxhbjwk.supabase.co
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white/70 dark:bg-black/30 border border-slate-200/60 dark:border-white/10">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Key Status:</span>
+                    <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Publishable Key Active</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="pt-1 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSyncToSupabase}
+                    disabled={isSyncingSupabase}
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      isRamadan
+                        ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 hover:from-amber-300 hover:to-yellow-400 shadow-sm'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
+                    }`}
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSupabase ? 'animate-spin' : ''}`} />
+                    <span>
+                      {isSyncingSupabase
+                        ? isAr
+                          ? 'جارِ المزامنة...'
+                          : 'Syncing...'
+                        : isAr
+                          ? 'مزامنة الشخصيات مع Supabase'
+                          : 'Sync Characters to Supabase'}
+                    </span>
+                  </button>
+
+                  <a
+                    href="https://supabase.com/dashboard/project/lezucbsacxcygxxhbjwk/sql/new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2 px-3 text-xs font-semibold rounded-xl border border-slate-300 dark:border-white/20 text-slate-700 dark:text-slate-200 hover:bg-white/20 flex items-center gap-1.5 transition-all"
+                  >
+                    <span>{isAr ? 'فتح محرر SQL' : 'Open SQL Editor'}</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+
+              {/* SQL Schema Creation Section */}
+              <div
+                className={`p-4 rounded-2xl border space-y-2.5 ${
+                  isRamadan
+                    ? 'border-amber-500/25 bg-[#0e1d2c]'
+                    : 'border-slate-200 bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-amber-200">
+                    <Database className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>{isAr ? 'إنشاء جدول characters (خطوة لمرة واحدة في Supabase):' : 'Create characters Table (One-time Setup):'}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopySql}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      copiedSql
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-[#0067c0] text-white hover:bg-[#005fb8]'
+                    }`}
+                  >
+                    {copiedSql ? (
+                      <>
+                        <Check className="w-3 h-3" />
+                        <span>{isAr ? 'تم النسخ!' : 'Copied!'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>{isAr ? 'نسخ كود SQL' : 'Copy SQL'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {isAr
+                    ? 'قم بلصق الكود التالي في محرر SQL في لوحة تحكم Supabase واضغط Run لإنشاء الجدول وسياسات الأمان العامة.'
+                    : 'Paste the following query into your Supabase SQL Editor and click Run to create the table and enable shared read/write policies.'}
+                </p>
+
+                <pre className="p-3 bg-slate-950 text-emerald-300 font-mono text-[11px] rounded-xl overflow-x-auto border border-slate-800 leading-relaxed text-left" dir="ltr">
+                  <code>{supabaseSqlSchema}</code>
+                </pre>
               </div>
             </div>
           )}

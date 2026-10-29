@@ -1,11 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSharedCharacters, saveSharedCharacters, SharedCharacter } from '@/lib/sharedStorage';
+import {
+  getSharedCharacters,
+  saveSharedCharacters,
+  deleteSharedCharacter,
+  getDatabaseStatus,
+  SharedCharacter,
+} from '@/lib/sharedStorage';
 
-// GET /api/characters - Retrieve shared list of characters
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+// GET /api/characters - Retrieve shared list of characters dynamically with DB status
 export async function GET() {
   try {
-    const characters = await getSharedCharacters();
-    return NextResponse.json({ success: true, characters });
+    const [characters, dbStatus] = await Promise.all([
+      getSharedCharacters(),
+      getDatabaseStatus(),
+    ]);
+
+    return NextResponse.json(
+      {
+        success: true,
+        characters,
+        dbStatus,
+        timestamp: Date.now(),
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        },
+      }
+    );
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'Failed to fetch characters' },
@@ -32,7 +57,10 @@ export async function POST(req: NextRequest) {
       }));
 
       await saveSharedCharacters(updatedList);
-      return NextResponse.json({ success: true, characters: updatedList });
+      return NextResponse.json(
+        { success: true, characters: updatedList },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
     }
 
     // Case 2: Single character addition
@@ -53,7 +81,10 @@ export async function POST(req: NextRequest) {
     const updated = [newChar, ...current];
     await saveSharedCharacters(updated);
 
-    return NextResponse.json({ success: true, character: newChar, characters: updated });
+    return NextResponse.json(
+      { success: true, character: newChar, characters: updated },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'Failed to save character' },
@@ -93,7 +124,10 @@ export async function PUT(req: NextRequest) {
 
     await saveSharedCharacters(updatedList);
 
-    return NextResponse.json({ success: true, character: updatedChar, characters: updatedList });
+    return NextResponse.json(
+      { success: true, character: updatedChar, characters: updatedList },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'Failed to update character' },
@@ -112,12 +146,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Character ID parameter is required' }, { status: 400 });
     }
 
+    await deleteSharedCharacter(id);
     const current = await getSharedCharacters();
-    const updated = current.filter((c) => c.id !== id);
 
-    await saveSharedCharacters(updated);
-
-    return NextResponse.json({ success: true, characters: updated });
+    return NextResponse.json(
+      { success: true, characters: current },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'Failed to delete character' },

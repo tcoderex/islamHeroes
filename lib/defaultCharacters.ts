@@ -1,0 +1,91 @@
+export interface CharacterData {
+  id: string;
+  name: string;
+  picture: string;
+  rating: number; // -1000 to 1000
+  description?: string;
+  updatedAt?: number;
+}
+
+export const DEFAULT_CHARACTERS: CharacterData[] = [
+  {
+    id: 'khalid-ibn-walid',
+    name: 'خالد بن الوليد (Khalid ibn al-Walid)',
+    picture: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80',
+    rating: 1000,
+    description: 'سيف الله المسلول · Sayf Allah al-Maslul. قائد عسكري لم يُهزم في أكثر من خمسين معركة',
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'salahuddin-ayyubi',
+    name: 'صلاح الدين الأيوبي (Salahuddin al-Ayyubi)',
+    picture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
+    rating: 980,
+    description: 'محرر القدس ومؤسس الدولة الأيوبية · The Liberator of Jerusalem',
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'abu-bakr-siddiq',
+    name: 'أبو بكر الصديق (Abu Bakr al-Siddiq)',
+    picture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
+    rating: 1000,
+    description: 'الصديق · الخليفة الراشد الأول وأقرب أصحاب رسول الله ﷺ',
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'umar-ibn-khattab',
+    name: 'عمر بن الخطاب (Umar ibn al-Khattab)',
+    picture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
+    rating: 1000,
+    description: 'الفاروق · الخليفة الراشد الثاني · Al-Faruq (The Distinguisher of Truth)',
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'uthman-ibn-affan',
+    name: 'عثمان بن عفان (Uthman ibn Affan)',
+    picture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+    rating: 1000,
+    description: 'ذو النورين · الخليفة الراشد الثالث · جامِع القرآن الكريم',
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'ali-ibn-abi-talib',
+    name: 'علي بن أبي طالب (Ali ibn Abi Talib)',
+    picture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
+    rating: 1000,
+    description: 'أسد الله الغالب وباب مدينة العلم · الخليفة الراشد الرابع',
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'tariq-ibn-ziyad',
+    name: 'طارق بن زياد (Tariq ibn Ziyad)',
+    picture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+    rating: 950,
+    description: 'فاتح الأندلس وقائد معركة وادي لكة · Conqueror of Hispania',
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'fatima-al-fihri',
+    name: 'فاطمة الفهرية (Fatima al-Fihri)',
+    picture: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80',
+    rating: 980,
+    description: 'مؤسسة أقدم جامعة في العالم (جامعة القرويين بفاس)',
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'harun-al-rashid',
+    name: 'هارون الرشيد (Harun al-Rashid)',
+    picture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
+    rating: 850,
+    description: 'خامس خلفاء بني العباس ومؤسس العصر الذهبي وبغداد عاصمة العلم',
+    updatedAt: 1700000000000,
+  },
+  {
+    id: 'sultan-baybars',
+    name: 'الظاهر بيبرس (Sultan Baybars)',
+    picture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
+    rating: 900,
+    description: 'سلطان مصر والشام وقاهر المغول والصليبيين في معركة عين جالوت',
+    updatedAt: 1700000000000,
+  },
+];

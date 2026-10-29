@@ -9,11 +9,12 @@ import {
   X,
   Check,
   ArrowUpDown,
-  Download,
-  FileUp,
   ChevronLeft,
   ChevronRight,
   Settings,
+  Search,
+  Database,
+  Sparkles,
 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme } from '@/lib/theme';
@@ -26,6 +27,7 @@ export interface CustomCharacter {
   picture: string;
   rating: number; // -1000 to 1000
   description?: string; // Optional small description
+  updatedAt?: number;
 }
 
 interface CharactersViewProps {
@@ -36,10 +38,17 @@ interface CharactersViewProps {
   onImportCharacters?: (characters: CustomCharacter[]) => void;
   onPreviewCharacter?: (character: CustomCharacter) => void;
   onShowToast?: (msg: string) => void;
-  onOpenSettings?: () => void;
   onExportCharacters?: () => void;
   theme?: AppTheme;
   isAr: boolean;
+  isAdmin?: boolean;
+  dbStatus?: {
+    provider: 'supabase' | 'netlify-blobs' | 'local';
+    supabaseConnected: boolean;
+    supabaseTableReady: boolean;
+    supabaseError?: string;
+    url?: string;
+  } | null;
 }
 
 export type SortOption = 'rating-desc' | 'rating-asc' | 'name-asc' | 'name-desc';
@@ -52,11 +61,13 @@ export default function CharactersView({
   onImportCharacters,
   onPreviewCharacter,
   onShowToast,
-  onOpenSettings,
   onExportCharacters,
   theme = 'tgis',
   isAr,
+  isAdmin = true,
+  dbStatus,
 }: CharactersViewProps) {
+  const [searchQuery, setSearchQuery] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -70,9 +81,14 @@ export default function CharactersView({
   const ITEMS_PER_PAGE = 6;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
 
   const currentTier = getRatingTier(rating);
+
+  const quickPicks = isAr
+    ? ['خالد بن الوليد', 'صلاح الدين', 'عمر بن الخطاب', 'فاطمة الفهرية', 'علي بن أبي طالب', 'طارق بن زياد']
+    : ['Khalid ibn al-Walid', 'Salahuddin', 'Umar ibn al-Khattab', 'Fatima al-Fihri', 'Ali ibn Abi Talib', 'Tariq ibn Ziyad'];
 
   const samplePictures = [
     'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
@@ -117,7 +133,7 @@ export default function CharactersView({
     setIsAdding(false);
   };
 
-  // Handle local file upload and compress via canvas for optimal localStorage storage
+  // Handle local file upload and compress via canvas for optimal localStorage/Supabase storage
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -193,95 +209,215 @@ export default function CharactersView({
     setImgErrorMap((prev) => ({ ...prev, [id]: true }));
   };
 
-  // Sort characters by Rating or Names
-  const sortedCharacters = useMemo(() => {
-    return [...characters].sort((a, b) => {
+  // Filter and sort unified characters list from Supabase
+  const filteredAndSortedCharacters = useMemo(() => {
+    let list = [...characters];
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((c) => {
+        const nameMatch = c.name.toLowerCase().includes(q);
+        const descMatch = c.description ? c.description.toLowerCase().includes(q) : false;
+        return nameMatch || descMatch;
+      });
+    }
+
+    return list.sort((a, b) => {
       if (sortBy === 'rating-desc') return b.rating - a.rating;
       if (sortBy === 'rating-asc') return a.rating - b.rating;
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
+      if (sortBy === 'name-asc') return a.name.localeCompare(b.name, isAr ? 'ar' : 'en');
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name, isAr ? 'ar' : 'en');
       return 0;
     });
-  }, [characters, sortBy]);
+  }, [characters, searchQuery, sortBy, isAr]);
 
   const handleSortChange = (newSort: SortOption) => {
     setSortBy(newSort);
     setCurrentPage(1);
   };
 
-  const totalPages = Math.max(1, Math.ceil(sortedCharacters.length / ITEMS_PER_PAGE));
+  const handleQueryChange = (val: string) => {
+    setSearchQuery(val);
+    setCurrentPage(1);
+  };
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedCharacters.length / ITEMS_PER_PAGE));
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
   const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, sortedCharacters.length);
-  const paginatedCharacters = sortedCharacters.slice(startIndex, endIndex);
+  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredAndSortedCharacters.length);
+  const paginatedCharacters = filteredAndSortedCharacters.slice(startIndex, endIndex);
+
+  const isRamadan = theme === 'ramadan';
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-5">
-      {/* Top Action Bar with Settings, Sort & Add */}
+    <div className="w-full max-w-7xl mx-auto space-y-6">
+      {/* 1. UNIFIED PROMINENT SEARCH BAR */}
+      <div className="w-full max-w-3xl mx-auto">
+        <div className="relative group">
+          <div
+            className={`relative flex items-center w-full rounded-2xl border transition-all ${
+              isRamadan
+                ? 'bg-[#0c1825]/95 border-amber-500/35 shadow-[0_8px_30px_rgba(245,158,11,0.1)] focus-within:border-amber-400 focus-within:ring-4 focus-within:ring-amber-400/20'
+                : 'bg-white/95 border-slate-200/90 shadow-[0_8px_30px_rgba(0,103,192,0.07),_0_2px_8px_rgba(0,0,0,0.03)] focus-within:border-[#0067c0] focus-within:ring-4 focus-within:ring-[#0067c0]/15'
+            }`}
+          >
+            {/* Search Icon */}
+            <div
+              className={`px-3.5 sm:px-4 flex items-center justify-center pointer-events-none ${
+                isRamadan ? 'text-amber-400' : 'text-[#0067c0]'
+              }`}
+            >
+              <Search className="w-5 h-5 stroke-[2.2]" />
+            </div>
+
+            {/* Input */}
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              placeholder={
+                isAr
+                  ? 'ابحث في شخصيات وأبطال الإسلام المتزامنة مع Supabase...'
+                  : 'Search Supabase characters by name, title, or bio...'
+              }
+              className={`w-full h-12 sm:h-14 py-2 bg-transparent text-sm sm:text-base outline-none font-normal ${
+                isRamadan
+                  ? 'text-amber-100 placeholder:text-amber-200/40'
+                  : 'text-slate-900 placeholder:text-slate-400'
+              }`}
+              autoComplete="off"
+              spellCheck="false"
+            />
+
+            {/* Clear Button */}
+            {searchQuery && (
+              <div className="px-3 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleQueryChange('');
+                    searchInputRef.current?.focus();
+                  }}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isRamadan
+                      ? 'text-amber-300/60 hover:text-amber-200 hover:bg-white/10'
+                      : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                  }`}
+                  title={isAr ? 'مسح' : 'Clear'}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Suggestion Chips */}
+        {!searchQuery && (
+          <div className="mt-3.5 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs">
+            <span
+              className={`text-[11px] sm:text-xs font-medium ${
+                isRamadan ? 'text-amber-300/60' : 'text-slate-400'
+              }`}
+            >
+              {isAr ? 'اقتراحات سريعة:' : 'Suggestions:'}
+            </span>
+            {quickPicks.map((pick) => (
+              <button
+                key={pick}
+                type="button"
+                onClick={() => {
+                  handleQueryChange(pick);
+                  searchInputRef.current?.focus();
+                }}
+                className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs ${
+                  isRamadan
+                    ? 'bg-[#0f2130] hover:bg-[#152e42] text-amber-200 hover:text-amber-100 border border-amber-500/30'
+                    : 'bg-white/80 hover:bg-blue-50 text-slate-700 hover:text-[#0067c0] border border-slate-200/70'
+                }`}
+              >
+                {pick}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 2. TOP ACTION & DATABASE STATUS TOOLBAR */}
       <div
         className={`p-3.5 sm:p-4 rounded-2xl backdrop-blur-xl border transition-all ${
-          theme === 'ramadan'
+          isRamadan
             ? 'bg-[#0c1825]/95 border-amber-500/30 text-amber-50 shadow-[0_8px_30px_rgba(245,158,11,0.08)]'
             : 'bg-white/90 border-slate-200/80 shadow-[0_4px_20px_rgba(0,103,192,0.06)]'
         } space-y-3`}
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2
-              className={`text-sm sm:text-base font-bold ${
-                theme === 'ramadan' ? 'text-amber-300' : 'text-slate-900'
-              }`}
-            >
-              {isAr ? 'إدارة الشخصيات (لوحة المشرف)' : 'Character Manager (Admin)'}
-            </h2>
+          {/* Left: Heading + Supabase Badge */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2
+                className={`text-sm sm:text-base font-bold ${
+                  isRamadan ? 'text-amber-300' : 'text-slate-900'
+                }`}
+              >
+                {isAr ? 'أبطال وشخصيات الإسلام' : 'Heroes of Islam Figures'}
+              </h2>
+
+              {/* Supabase Status Pill */}
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400"
+                title="Connected to Supabase PostgreSQL database"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <Database className="w-3 h-3" />
+                <span>Supabase Live</span>
+              </div>
+            </div>
+
             <p
               className={`text-[11px] sm:text-xs ${
-                theme === 'ramadan' ? 'text-amber-200/60' : 'text-slate-500'
+                isRamadan ? 'text-amber-200/60' : 'text-slate-500'
               }`}
             >
-              {isAr
-                ? 'إضافة وتعديل وتقييم الشخصيات من النوراني الملائكي (+1000) إلى الشيطاني (-1000)'
-                : 'Manage and rank figures from Angelic (+1000) to Demonic (-1000)'}
+              {searchQuery
+                ? isAr
+                  ? `نتائج البحث عن "${searchQuery}" (${filteredAndSortedCharacters.length} شخصية)`
+                  : `Search results for "${searchQuery}" (${filteredAndSortedCharacters.length} figures)`
+                : isAr
+                  ? `قاعدة بيانات مشتركة تضم ${characters.length} شخصية مع ميزان التقييم النوراني والشيطاني`
+                  : `Shared database of ${characters.length} figures with moral alignment ratings`}
             </p>
           </div>
 
-          {/* Action Buttons: Settings (Theme/Template/Backup) and Add */}
-          <div className="flex flex-wrap items-center gap-2">
-            {onOpenSettings && (
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs active:scale-[0.98] ${
-                  theme === 'ramadan'
-                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 hover:from-amber-300 hover:to-yellow-400 ring-1 ring-amber-400/50'
-                    : 'bg-slate-900 text-white hover:bg-slate-800'
-                }`}
-                title={isAr ? 'إعدادات المشرف (السمات، النماذج، النسخ الاحتياطي)' : 'Admin Settings (Theme, Templates, Backup)'}
-              >
-                <Settings className="w-3.5 h-3.5" />
-                <span>{isAr ? 'الإعدادات والنسخ الاحتياطي' : 'Settings & Backup'}</span>
-              </button>
-            )}
-
+          {/* Right Action: Add Character */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleStartAdd}
-              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer active:scale-[0.98] ${
-                theme === 'ramadan'
-                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold'
-                  : 'bg-[#0067c0] hover:bg-[#005fb8] text-white'
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer active:scale-[0.98] ${
+                isRamadan
+                  ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 hover:from-amber-300 hover:to-yellow-400 shadow-amber-500/20'
+                  : 'bg-[#0067c0] hover:bg-[#005fb8] text-white shadow-blue-500/20'
               }`}
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>{isAr ? 'إضافة شخصية' : 'Add Character'}</span>
             </button>
           </div>
         </div>
 
         {/* Sorting Controls */}
-        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-1.5 text-slate-500 font-medium text-[11px] sm:text-xs">
-            <ArrowUpDown className="w-3.5 h-3.5 text-[#0067c0]" />
+        <div
+          className={`pt-2 border-t flex flex-wrap items-center justify-between gap-2 text-xs ${
+            isRamadan ? 'border-amber-500/20' : 'border-slate-100'
+          }`}
+        >
+          <div
+            className={`flex items-center gap-1.5 font-medium text-[11px] sm:text-xs ${
+              isRamadan ? 'text-amber-200/70' : 'text-slate-500'
+            }`}
+          >
+            <ArrowUpDown className={`w-3.5 h-3.5 ${isRamadan ? 'text-amber-400' : 'text-[#0067c0]'}`} />
             <span>{isAr ? 'ترتيب حسب:' : 'Sort by:'}</span>
           </div>
 
@@ -291,8 +427,12 @@ export default function CharactersView({
               onClick={() => handleSortChange('rating-desc')}
               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 sortBy === 'rating-desc'
-                  ? 'bg-[#0067c0] text-white shadow-2xs font-semibold'
-                  : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/80'
+                  ? isRamadan
+                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold shadow-2xs'
+                    : 'bg-[#0067c0] text-white shadow-2xs font-semibold'
+                  : isRamadan
+                    ? 'bg-[#122436] text-amber-200/70 hover:bg-[#172d42]'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {isAr ? 'الأعلى تقييماً (ملائكي ↓)' : 'Rating (High ↓)'}
@@ -302,8 +442,12 @@ export default function CharactersView({
               onClick={() => handleSortChange('rating-asc')}
               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 sortBy === 'rating-asc'
-                  ? 'bg-[#0067c0] text-white shadow-2xs font-semibold'
-                  : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/80'
+                  ? isRamadan
+                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold shadow-2xs'
+                    : 'bg-[#0067c0] text-white shadow-2xs font-semibold'
+                  : isRamadan
+                    ? 'bg-[#122436] text-amber-200/70 hover:bg-[#172d42]'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {isAr ? 'الأقل تقييماً (شيطاني ↑)' : 'Rating (Low ↑)'}
@@ -313,8 +457,12 @@ export default function CharactersView({
               onClick={() => handleSortChange('name-asc')}
               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 sortBy === 'name-asc'
-                  ? 'bg-[#0067c0] text-white shadow-2xs font-semibold'
-                  : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/80'
+                  ? isRamadan
+                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold shadow-2xs'
+                    : 'bg-[#0067c0] text-white shadow-2xs font-semibold'
+                  : isRamadan
+                    ? 'bg-[#122436] text-amber-200/70 hover:bg-[#172d42]'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {isAr ? 'الاسم (أ - ي)' : 'Name (A - Z)'}
@@ -324,8 +472,12 @@ export default function CharactersView({
               onClick={() => handleSortChange('name-desc')}
               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 sortBy === 'name-desc'
-                  ? 'bg-[#0067c0] text-white shadow-2xs font-semibold'
-                  : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/80'
+                  ? isRamadan
+                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold shadow-2xs'
+                    : 'bg-[#0067c0] text-white shadow-2xs font-semibold'
+                  : isRamadan
+                    ? 'bg-[#122436] text-amber-200/70 hover:bg-[#172d42]'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {isAr ? 'الاسم (ي - أ)' : 'Name (Z - A)'}
@@ -334,14 +486,26 @@ export default function CharactersView({
         </div>
       </div>
 
-      {/* Add / Edit Character Form Modal / Slide-down */}
+      {/* 3. ADD / EDIT CHARACTER FORM MODAL */}
       {isAdding && (
         <div
           ref={formRef}
-          className="bg-white/95 backdrop-blur-xl border border-blue-200/90 rounded-2xl p-4 sm:p-5 shadow-[0_12px_36px_rgba(0,103,192,0.1)] animate-in fade-in zoom-in-95 duration-150"
+          className={`backdrop-blur-xl border rounded-2xl p-4 sm:p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 ${
+            isRamadan
+              ? 'bg-[#0c1825]/95 border-amber-500/40 text-amber-50 shadow-[0_12px_40px_rgba(245,158,11,0.15)]'
+              : 'bg-white/95 border-blue-200/90 shadow-[0_12px_36px_rgba(0,103,192,0.1)]'
+          }`}
         >
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <div
+            className={`flex items-center justify-between pb-3 border-b mb-4 ${
+              isRamadan ? 'border-amber-500/20' : 'border-slate-100'
+            }`}
+          >
+            <h3
+              className={`text-sm font-bold flex items-center gap-2 ${
+                isRamadan ? 'text-amber-300' : 'text-slate-900'
+              }`}
+            >
               {editingId ? (
                 <>
                   <Pencil className="w-4 h-4 text-[#0067c0]" />
@@ -364,11 +528,10 @@ export default function CharactersView({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
-            {/* Fields 1 & 2: Name and Optional Description in responsive 2-column grid */}
+            {/* Name and Description */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Field 1: Name */}
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-amber-200 mb-1">
                   {isAr ? 'الاسم' : 'Name'}
                 </label>
                 <input
@@ -377,14 +540,13 @@ export default function CharactersView({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={isAr ? 'اسم الشخصية...' : 'Character name...'}
-                  className="w-full px-3 py-2 text-sm bg-slate-50/80 rounded-xl border border-slate-200 focus:bg-white focus:border-[#0067c0] focus:ring-3 focus:ring-[#0067c0]/15 outline-none transition-all"
+                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-black/40 rounded-xl border border-slate-200 dark:border-white/10 focus:bg-white focus:border-[#0067c0] focus:ring-3 focus:ring-[#0067c0]/15 outline-none transition-all"
                 />
               </div>
 
-              {/* Field 2: Optional Small Description */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-slate-700">
+                  <label className="text-xs font-medium text-slate-700 dark:text-amber-200">
                     {isAr ? 'الوصف' : 'Description'}
                   </label>
                   <span className="text-[10px] text-slate-400">
@@ -401,14 +563,14 @@ export default function CharactersView({
                       ? 'مثال: قائد عسكري بارز، مؤرخ، عالم...'
                       : 'e.g. Commander of Syria, scholar in Cairo...'
                   }
-                  className="w-full px-3 py-2 text-sm bg-slate-50/80 rounded-xl border border-slate-200 focus:bg-white focus:border-[#0067c0] focus:ring-3 focus:ring-[#0067c0]/15 outline-none transition-all"
+                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-black/40 rounded-xl border border-slate-200 dark:border-white/10 focus:bg-white focus:border-[#0067c0] focus:ring-3 focus:ring-[#0067c0]/15 outline-none transition-all"
                 />
               </div>
             </div>
 
-            {/* Field 3: Photo Upload + URL */}
+            {/* Photo Upload + URL */}
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              <label className="block text-xs font-medium text-slate-700 dark:text-amber-200 mb-1.5">
                 {isAr ? 'الصورة (رفع من الجهاز أو رابط)' : 'Picture (Upload or URL)'}
               </label>
 
@@ -451,7 +613,7 @@ export default function CharactersView({
               </div>
 
               {picture && (
-                <div className="mb-2 flex items-center gap-2.5 p-2 bg-slate-50 rounded-xl border border-slate-200/80">
+                <div className="mb-2 flex items-center gap-2.5 p-2 bg-slate-50 dark:bg-black/30 rounded-xl border border-slate-200/80 dark:border-white/10">
                   <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-200 shrink-0 border border-slate-300">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -473,7 +635,7 @@ export default function CharactersView({
                 value={picture}
                 onChange={(e) => setPicture(e.target.value)}
                 placeholder={isAr ? 'أو أدخل رابط الصورة...' : 'Or enter image URL...'}
-                className="w-full px-3 py-2 text-xs bg-slate-50/80 rounded-xl border border-slate-200 focus:bg-white focus:border-[#0067c0] focus:ring-3 focus:ring-[#0067c0]/15 outline-none transition-all font-mono"
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-black/40 rounded-xl border border-slate-200 dark:border-white/10 focus:bg-white focus:border-[#0067c0] focus:ring-3 focus:ring-[#0067c0]/15 outline-none transition-all font-mono"
               />
 
               <div className="mt-2 flex items-center gap-2">
@@ -504,7 +666,7 @@ export default function CharactersView({
               </div>
             </div>
 
-            {/* Field 4: 5-Tier Rating Slider from -1000 to 1000 */}
+            {/* Rating Slider (-1000 to +1000) */}
             <div className={`p-3.5 rounded-xl border ${currentTier.borderColor} ${currentTier.bgLight} transition-all`}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -520,7 +682,6 @@ export default function CharactersView({
                 </span>
               </div>
 
-              {/* Slider */}
               <input
                 type="range"
                 min={-1000}
@@ -531,7 +692,6 @@ export default function CharactersView({
                 className="w-full accent-[#0067c0] cursor-pointer"
               />
 
-              {/* 5 Tier Legend & Numeric Input */}
               <div className="mt-2 flex items-center justify-between text-[10px] font-mono">
                 <span className="text-purple-600 font-bold" title="-1000 to -500: Devil">
                   😈 -1000
@@ -569,42 +729,47 @@ export default function CharactersView({
               >
                 {editingId
                   ? isAr
-                    ? 'حفظ التعديلات'
-                    : 'Save Changes'
+                    ? 'حفظ التعديلات في Supabase'
+                    : 'Save Changes to Supabase'
                   : isAr
-                    ? 'حفظ الشخصية'
-                    : 'Save Character'}
+                    ? 'حفظ الشخصية في Supabase'
+                    : 'Save Character to Supabase'}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Characters List: Normal compact on mobile, large & prominent on PC/laptop */}
+      {/* 4. UNIFIED CHARACTERS GRID (CONNECTED TO SUPABASE) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4 md:gap-6">
-        {sortedCharacters.length === 0 ? (
-          <div className="col-span-full py-12 text-center bg-white/70 rounded-2xl border border-dashed border-slate-200 p-6">
+        {filteredAndSortedCharacters.length === 0 ? (
+          <div className="col-span-full py-12 text-center bg-white/70 dark:bg-black/30 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-6">
             <p className="text-xs sm:text-sm text-slate-500 mb-3">
-              {isAr ? 'لا توجد شخصيات حتى الآن' : 'No characters added yet.'}
+              {searchQuery
+                ? isAr
+                  ? `لم يتم العثور على شخصيات تطابق "${searchQuery}"`
+                  : `No figures found matching "${searchQuery}"`
+                : isAr
+                  ? 'لا توجد شخصيات حتى الآن'
+                  : 'No characters in database yet.'}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2">
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => handleQueryChange('')}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-[#0067c0] bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  {isAr ? 'عرض جميع الشخصيات' : 'Show All Figures'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleStartAdd}
-                className="px-3.5 py-1.5 text-xs font-semibold text-[#0067c0] bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#0067c0] hover:bg-[#005fb8] rounded-xl transition-colors cursor-pointer"
               >
-                {isAr ? 'أضف أول شخصية' : 'Add First Character'}
+                {isAr ? 'إضافة شخصية جديدة' : 'Add First Character'}
               </button>
-              {onOpenSettings && (
-                <button
-                  type="button"
-                  onClick={onOpenSettings}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>{isAr ? 'الإعدادات والنماذج' : 'Settings & Templates'}</span>
-                </button>
-              )}
             </div>
           </div>
         ) : (
@@ -617,16 +782,13 @@ export default function CharactersView({
                 key={char.id}
                 onClick={() => onPreviewCharacter?.(char)}
                 className={`relative flex flex-col rounded-2xl md:rounded-3xl border overflow-hidden backdrop-blur-xl transition-all duration-300 group cursor-pointer active:scale-[0.99] hover:-translate-y-1.5 ${
-                  theme === 'ramadan'
+                  isRamadan
                     ? 'bg-[#0f1e2c]/95 border-amber-500/25 shadow-[0_8px_30px_rgba(245,158,11,0.08)] hover:border-amber-400/60 hover:shadow-[0_16px_40px_rgba(245,158,11,0.2)]'
                     : 'bg-white/95 border-slate-200/90 shadow-[0_8px_25px_rgba(0,103,192,0.06)] hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(0,103,192,0.14)]'
                 }`}
               >
-                {/* Full-bleed Picture Frame: Picture covers the entire frame starting at the very top edge */}
-                <div
-                  className="relative w-full h-60 sm:h-68 md:h-76 lg:h-84 overflow-hidden shrink-0 select-none bg-slate-100"
-                >
-                  {/* 1. Main Picture: Absolute inset-0 ensures 100% full coverage from top to bottom with NO black gaps */}
+                {/* Full-bleed Picture Frame: Picture covers the entire frame starting at the very top edge with ZERO black gap */}
+                <div className="relative w-full h-60 sm:h-68 md:h-76 lg:h-84 overflow-hidden shrink-0 select-none bg-slate-100">
                   {char.picture && !hasError ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -639,7 +801,7 @@ export default function CharactersView({
                   ) : (
                     <div
                       className={`absolute inset-0 w-full h-full flex flex-col items-center justify-center font-bold text-3xl sm:text-5xl select-none ${
-                        theme === 'ramadan'
+                        isRamadan
                           ? 'bg-gradient-to-br from-[#122637] to-[#1a384f] text-amber-300'
                           : 'bg-gradient-to-br from-slate-100 to-sky-100 text-sky-500'
                       }`}
@@ -648,7 +810,7 @@ export default function CharactersView({
                     </div>
                   )}
 
-                  {/* 2. ON PICTURE TOP-LEFT: Honor Badge (Only Icon, No Text) */}
+                  {/* 1. ON PICTURE TOP-LEFT: Honor Badge */}
                   <HonorBadge
                     rating={char.rating}
                     isAr={isAr}
@@ -656,14 +818,14 @@ export default function CharactersView({
                     className="absolute top-3 left-3 sm:top-3.5 sm:left-3.5 z-20"
                   />
 
-                  {/* 3. ON PICTURE MIDDLE-TOP: Glowing Score Badge */}
+                  {/* 2. ON PICTURE MIDDLE-TOP: Glowing Score Badge */}
                   <GlowingScoreBadge
                     rating={char.rating}
                     size="md"
                     className="absolute top-3 sm:top-3.5 left-1/2 -translate-x-1/2 z-20"
                   />
 
-                  {/* 4. ON PICTURE TOP-RIGHT: Admin Actions (Edit & Delete) */}
+                  {/* 3. ON PICTURE TOP-RIGHT: Admin Actions (Edit & Delete) */}
                   <div
                     className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 flex items-center gap-1 z-20 bg-slate-950/75 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-white/20 text-white shadow-lg"
                     onClick={(e) => e.stopPropagation()}
@@ -692,7 +854,7 @@ export default function CharactersView({
                   <div>
                     <h3
                       className={`text-base sm:text-lg md:text-xl font-bold transition-colors truncate ${
-                        theme === 'ramadan'
+                        isRamadan
                           ? 'text-amber-100 group-hover:text-amber-300'
                           : 'text-slate-900 group-hover:text-[#0067c0]'
                       }`}
@@ -703,7 +865,7 @@ export default function CharactersView({
                     {char.description ? (
                       <p
                         className={`text-xs sm:text-sm line-clamp-2 mt-1.5 leading-relaxed ${
-                          theme === 'ramadan' ? 'text-amber-200/70' : 'text-slate-600'
+                          isRamadan ? 'text-amber-200/70' : 'text-slate-600'
                         }`}
                       >
                         {char.description}
@@ -711,7 +873,7 @@ export default function CharactersView({
                     ) : (
                       <p
                         className={`text-xs mt-1.5 ${
-                          theme === 'ramadan' ? 'text-amber-200/40' : 'text-slate-400'
+                          isRamadan ? 'text-amber-200/40' : 'text-slate-400'
                         }`}
                       >
                         {isAr ? 'انقر لعرض تفاصيل الشخصية' : 'Click to view full preview'}
@@ -722,7 +884,7 @@ export default function CharactersView({
                   {/* Bottom Status & Preview Hint */}
                   <div
                     className={`flex items-center justify-between pt-3 mt-4 border-t w-full text-xs ${
-                      theme === 'ramadan'
+                      isRamadan
                         ? 'border-amber-500/20 text-amber-200/80'
                         : 'border-slate-100 text-slate-500'
                     }`}
@@ -740,7 +902,7 @@ export default function CharactersView({
 
                     <span
                       className={`inline-flex items-center gap-1 font-bold text-xs group-hover:underline ${
-                        theme === 'ramadan' ? 'text-amber-300' : 'text-[#0067c0]'
+                        isRamadan ? 'text-amber-300' : 'text-[#0067c0]'
                       }`}
                     >
                       <span>{isAr ? 'معاينة' : 'Preview'}</span>
@@ -754,31 +916,26 @@ export default function CharactersView({
         )}
       </div>
 
-      {/* Pagination Controls for Characters Tab */}
-      {sortedCharacters.length > ITEMS_PER_PAGE && (
-        <div className="bg-white/95 backdrop-blur-xl border border-slate-200/90 p-3 sm:p-3.5 rounded-2xl shadow-[0_4px_16px_rgba(0,103,192,0.05)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          {/* Summary */}
-          <div className="text-slate-500 font-medium text-[11px] sm:text-xs">
+      {/* 5. PAGINATION CONTROLS */}
+      {filteredAndSortedCharacters.length > ITEMS_PER_PAGE && (
+        <div className="bg-white/95 dark:bg-[#0c1825]/95 backdrop-blur-xl border border-slate-200/90 dark:border-amber-500/30 p-3 sm:p-3.5 rounded-2xl shadow-[0_4px_16px_rgba(0,103,192,0.05)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="text-slate-500 dark:text-amber-200/70 font-medium text-[11px] sm:text-xs">
             {isAr
-              ? `عرض ${startIndex + 1} - ${endIndex} من أصل ${sortedCharacters.length} شخصية`
-              : `Showing ${startIndex + 1} - ${endIndex} of ${sortedCharacters.length} characters`}
+              ? `عرض ${startIndex + 1} - ${endIndex} من أصل ${filteredAndSortedCharacters.length} شخصية`
+              : `Showing ${startIndex + 1} - ${endIndex} of ${filteredAndSortedCharacters.length} figures`}
           </div>
 
-          {/* Navigation Buttons */}
           <div className="flex items-center gap-1.5">
-            {/* Previous Page */}
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safeCurrentPage <= 1}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed text-slate-700 transition-all cursor-pointer font-medium text-xs shadow-2xs"
-              title={isAr ? 'الصفحة السابقة' : 'Previous page'}
             >
               <ChevronLeft className={`w-3.5 h-3.5 ${isAr ? 'rotate-180' : ''}`} />
               <span className="hidden sm:inline">{isAr ? 'السابق' : 'Prev'}</span>
             </button>
 
-            {/* Numeric Page Buttons */}
             <div className="flex items-center gap-1">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
                 const isActive = pageNum === safeCurrentPage;
@@ -789,7 +946,9 @@ export default function CharactersView({
                     onClick={() => setCurrentPage(pageNum)}
                     className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${
                       isActive
-                        ? 'bg-[#0067c0] text-white shadow-xs'
+                        ? isRamadan
+                          ? 'bg-amber-400 text-slate-950 font-bold'
+                          : 'bg-[#0067c0] text-white shadow-xs'
                         : 'bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50 shadow-2xs'
                     }`}
                   >
@@ -799,13 +958,11 @@ export default function CharactersView({
               })}
             </div>
 
-            {/* Next Page */}
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safeCurrentPage >= totalPages}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed text-slate-700 transition-all cursor-pointer font-medium text-xs shadow-2xs"
-              title={isAr ? 'الصفحة التالية' : 'Next page'}
             >
               <span className="hidden sm:inline">{isAr ? 'التالي' : 'Next'}</span>
               <ChevronRight className={`w-3.5 h-3.5 ${isAr ? 'rotate-180' : ''}`} />
