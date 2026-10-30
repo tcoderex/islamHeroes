@@ -15,11 +15,14 @@ import {
   Search,
   Database,
   Sparkles,
+  Volume2,
+  Loader2,
 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme } from '@/lib/theme';
 import HonorBadge from './HonorBadge';
 import GlowingScoreBadge from './GlowingScoreBadge';
+import { convertNameToArabic, speakInArabic, hasArabicCharacters } from '@/lib/arabicTransliteration';
 
 export interface CustomCharacter {
   id: string;
@@ -76,6 +79,8 @@ export default function CharactersView({
   const [rating, setRating] = useState<number>(850);
   const [imgErrorMap, setImgErrorMap] = useState<Record<string, boolean>>({});
   const [isUploading, setIsUploading] = useState(false);
+  const [isSpeakingName, setIsSpeakingName] = useState<string | null>(null);
+  const [isConvertingName, setIsConvertingName] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<SortOption>('rating-desc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const ITEMS_PER_PAGE = 6;
@@ -85,6 +90,65 @@ export default function CharactersView({
   const formRef = useRef<HTMLDivElement | null>(null);
 
   const currentTier = getRatingTier(rating);
+
+  // Suggested Arabic name in real-time when user types Latin letters (e.g., "abdallah rushdi")
+  const suggestedArabicName = useMemo(() => {
+    const trimmed = name.trim();
+    if (!trimmed || hasArabicCharacters(trimmed)) return '';
+    return convertNameToArabic(trimmed);
+  }, [name]);
+
+  const handleReadName = (targetName: string, idKey: string = 'form-name') => {
+    if (!targetName.trim()) return;
+    setIsSpeakingName(idKey);
+    const ok = speakInArabic(targetName, () => {
+      setIsSpeakingName(null);
+    });
+    if (!ok) {
+      setIsSpeakingName(null);
+      onShowToast?.(
+        isAr
+          ? 'عذراً، محرك النطق الصوتي غير متاح في المتصفح'
+          : 'Voice speech synthesis not available in your browser'
+      );
+    }
+  };
+
+  const handleConvertName = async (inputName: string) => {
+    const trimmed = inputName.trim();
+    if (!trimmed) return;
+    setIsConvertingName(true);
+
+    try {
+      const res = await fetch('/api/arabic-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = await res.json();
+      if (data.success && data.arabicName) {
+        setName(data.arabicName);
+        onShowToast?.(
+          isAr
+            ? `تم تعريب الاسم بنجاح: ${data.arabicName}`
+            : `Converted name to Arabic: ${data.arabicName}`
+        );
+        setIsConvertingName(false);
+        return;
+      }
+    } catch {
+      // fallback
+    }
+
+    const fallback = convertNameToArabic(trimmed);
+    setName(fallback);
+    onShowToast?.(
+      isAr
+        ? `تم تعريب الاسم: ${fallback}`
+        : `Converted to Arabic: ${fallback}`
+    );
+    setIsConvertingName(false);
+  };
 
   const dynamicSuggestions = useMemo(() => {
     if (!characters || characters.length === 0) return [];
@@ -546,17 +610,110 @@ export default function CharactersView({
             {/* Name and Description */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-amber-200 mb-1">
-                  {isAr ? 'الاسم' : 'Name'}
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-slate-700 dark:text-amber-200">
+                    {isAr ? 'الاسم' : 'Name'}
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {/* Read name aloud in Arabic button */}
+                    {name.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => handleReadName(name, 'form-name')}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                          isSpeakingName === 'form-name'
+                            ? 'bg-emerald-500 text-white animate-pulse'
+                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                        }`}
+                        title={isAr ? 'قراءة الاسم صوتياً بالعربية' : 'Pronounce name in Arabic'}
+                      >
+                        <Volume2 className="w-3 h-3" />
+                        <span>
+                          {isSpeakingName === 'form-name'
+                            ? isAr
+                              ? 'جاري النطق...'
+                              : 'Speaking...'
+                            : isAr
+                              ? 'نطق الاسم بالعربية'
+                              : 'Read in Arabic'}
+                        </span>
+                      </button>
+                    )}
+
+                    {/* Convert any name to Arabic button */}
+                    {name.trim() && !hasArabicCharacters(name) && (
+                      <button
+                        type="button"
+                        disabled={isConvertingName}
+                        onClick={() => handleConvertName(name)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-[#0067c0]/10 hover:bg-[#0067c0]/20 text-[#0067c0] dark:text-sky-300 border border-[#0067c0]/30 transition-all cursor-pointer disabled:opacity-50"
+                        title={isAr ? 'تحويل وتعريب الاسم إلى حروف عربية' : 'Convert name to Arabic script'}
+                      >
+                        {isConvertingName ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3 h-3" />
+                        )}
+                        <span>{isAr ? 'تعريب الاسم' : 'Convert to Arabic'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={isAr ? 'اسم الشخصية...' : 'Character name...'}
+                  placeholder={
+                    isAr
+                      ? 'مثال: abdallah rushdi أو عبد الله رشدي...'
+                      : 'e.g. abdallah rushdi, salahuddin...'
+                  }
                   className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-black/40 rounded-xl border border-slate-200 dark:border-white/10 focus:bg-white focus:border-[#0067c0] focus:ring-3 focus:ring-[#0067c0]/15 outline-none transition-all"
                 />
+
+                {/* Instant interactive Arabic suggestion if user types English/Latin name like "abdallah rushdi" */}
+                {suggestedArabicName && (
+                  <div className="mt-2 p-2 rounded-xl bg-blue-50/90 dark:bg-[#0f2438] border border-blue-200 dark:border-sky-500/30 flex items-center justify-between gap-2 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="flex items-center gap-1.5 overflow-hidden">
+                      <Sparkles className="w-3.5 h-3.5 text-[#0067c0] dark:text-amber-300 shrink-0" />
+                      <span className="text-[11px] text-slate-500 dark:text-amber-200/70">
+                        {isAr ? 'التعريب المقترح:' : 'Suggested Arabic:'}
+                      </span>
+                      <span className="font-bold text-xs sm:text-sm text-[#0067c0] dark:text-amber-300 truncate font-arabic">
+                        {suggestedArabicName}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleReadName(suggestedArabicName, 'suggested-arabic')}
+                        className={`p-1 rounded-lg text-slate-600 dark:text-amber-300 hover:bg-white/70 dark:hover:bg-white/10 transition-colors cursor-pointer ${
+                          isSpeakingName === 'suggested-arabic' ? 'text-emerald-500 animate-pulse' : ''
+                        }`}
+                        title={isAr ? 'استماع للنطق الصوتي' : 'Listen to Arabic pronunciation'}
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setName(suggestedArabicName);
+                          onShowToast?.(
+                            isAr
+                              ? `تم تطبيق الاسم بالعربية: ${suggestedArabicName}`
+                              : `Applied Arabic name: ${suggestedArabicName}`
+                          );
+                        }}
+                        className="px-2.5 py-0.5 rounded-lg bg-[#0067c0] hover:bg-[#005fb8] text-white font-semibold text-[11px] shadow-2xs transition-colors cursor-pointer"
+                      >
+                        {isAr ? 'تطبيق الاسم' : 'Apply'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -708,10 +865,10 @@ export default function CharactersView({
               />
 
               <div className="mt-2 flex items-center justify-between text-[10px] font-mono">
-                <span className="text-purple-600 font-bold" title="-1000 to -500: Devil">
+                <span className="text-purple-600 font-bold" title="-1000 to -751: Demonic">
                   😈 -1000
                 </span>
-                <span className="text-rose-500 font-medium">-500</span>
+                <span className="text-slate-500 font-medium" title="-49 to +49: Balanced">⚖️ 0</span>
                 <input
                   type="number"
                   min={-1000}
@@ -723,10 +880,53 @@ export default function CharactersView({
                   }}
                   className="w-16 px-1.5 py-0.5 text-center font-mono font-bold text-xs bg-white border border-slate-300 rounded-lg outline-none focus:border-[#0067c0]"
                 />
-                <span className="text-emerald-600 font-medium">+500</span>
-                <span className="text-sky-500 font-bold" title="850 to 1000: Angel">
+                <span className="text-emerald-600 font-medium">+600</span>
+                <span className="text-sky-500 font-bold" title="850 to 1000: Celestial">
                   😇 +1000
                 </span>
+              </div>
+
+              {/* Quick Class Selection Presets */}
+              <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-white/10 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {isAr ? 'مراتب سريعة:' : 'Quick Classes:'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRating(950)}
+                  className="px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 hover:bg-sky-200 text-[10px] font-semibold cursor-pointer"
+                >
+                  {isAr ? 'ملائكي (+950)' : 'Celestial (+950)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRating(700)}
+                  className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-semibold cursor-pointer"
+                >
+                  {isAr ? 'صالح (+700)' : 'Virtuous (+700)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRating(-30)}
+                  className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 hover:bg-amber-200 text-[10px] font-bold border border-amber-300 cursor-pointer"
+                  title={isAr ? '-30 يقع ضمن المعتدل/المتوازن وليس شريراً' : '-30 is in the Balanced/Moderate tier'}
+                >
+                  {isAr ? 'معتدل (-30)' : 'Moderate (-30)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRating(-120)}
+                  className="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 text-[10px] font-medium cursor-pointer"
+                >
+                  {isAr ? 'ذو عثرات (-120)' : 'Flawed (-120)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRating(-850)}
+                  className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 hover:bg-purple-200 text-[10px] font-medium cursor-pointer"
+                >
+                  {isAr ? 'طاغية (-850)' : 'Tyrant (-850)'}
+                </button>
               </div>
             </div>
 
@@ -867,15 +1067,34 @@ export default function CharactersView({
                 {/* Character Details: Name, Description, and Tier */}
                 <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
                   <div>
-                    <h3
-                      className={`text-base sm:text-lg md:text-xl font-bold transition-colors truncate ${
-                        isRamadan
-                          ? 'text-amber-100 group-hover:text-amber-300'
-                          : 'text-slate-900 group-hover:text-[#0067c0]'
-                      }`}
-                    >
-                      {char.name}
-                    </h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <h3
+                        className={`text-base sm:text-lg md:text-xl font-bold transition-colors truncate ${
+                          isRamadan
+                            ? 'text-amber-100 group-hover:text-amber-300'
+                            : 'text-slate-900 group-hover:text-[#0067c0]'
+                        }`}
+                      >
+                        {char.name}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReadName(char.name, char.id);
+                        }}
+                        className={`p-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
+                          isSpeakingName === char.id
+                            ? 'bg-emerald-500 text-white animate-pulse'
+                            : isRamadan
+                              ? 'text-amber-300/70 hover:text-amber-200 hover:bg-white/10'
+                              : 'text-slate-400 hover:text-[#0067c0] hover:bg-blue-50'
+                        }`}
+                        title={isAr ? 'قراءة الاسم صوتياً بالعربية' : 'Pronounce name in Arabic'}
+                      >
+                        <Volume2 className="w-4 h-4" />
+                      </button>
+                    </div>
 
                     {char.description ? (
                       <p
@@ -905,13 +1124,14 @@ export default function CharactersView({
                     }`}
                   >
                     <div className="flex items-center gap-1.5 font-semibold">
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-slate-400 dark:text-slate-300">
                         {isAr ? 'المرتبة:' : 'Tier:'}
                       </span>
                       <span
-                        className={`px-2.5 py-0.5 rounded-md font-bold text-xs ${charTier.bgLight} ${charTier.textColor} border ${charTier.borderColor}`}
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-xs shadow-2xs ${charTier.badgeGradient}`}
                       >
-                        {isAr ? charTier.nameAr : charTier.nameEn}
+                        <TierIcon tierKey={charTier.key} className="w-3 h-3 shrink-0" />
+                        <span>{isAr ? charTier.nameAr : charTier.nameEn}</span>
                       </span>
                     </div>
 

@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Volume2,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal from '@/components/AdminSettingsModal';
@@ -23,9 +24,10 @@ import CharactersView, { CustomCharacter } from '@/components/CharactersView';
 import CharacterPreviewModal, { PreviewableCharacter } from '@/components/CharacterPreviewModal';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
-import { getRatingTier } from '@/lib/ratingTiers';
+import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { DEFAULT_CHARACTERS } from '@/lib/defaultCharacters';
+import { speakInArabic } from '@/lib/arabicTransliteration';
 
 export type SortOption = 'rating-desc' | 'rating-asc' | 'name-asc' | 'name-desc';
 
@@ -58,6 +60,7 @@ export default function HomePage() {
   } | null>(null);
 
   const [copiedEmail, setCopiedEmail] = useState(false);
+  const [speakingCardId, setSpeakingCardId] = useState<string | null>(null);
 
   const handleCopyEmail = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -66,6 +69,12 @@ export default function HomePage() {
     setCopiedEmail(true);
     setTimeout(() => setCopiedEmail(false), 2000);
     showToast(isAr ? 'تم نسخ الإيميل: tcoderex@gmail.com' : 'Copied email: tcoderex@gmail.com');
+  };
+
+  const handleReadCharacterName = (e: React.MouseEvent, charName: string, id: string) => {
+    e.stopPropagation();
+    setSpeakingCardId(id);
+    speakInArabic(charName, () => setSpeakingCardId(null));
   };
 
   // Dynamically detect characters from the active database for suggestions
@@ -743,19 +752,27 @@ export default function HomePage() {
 
                 <div className="inline-flex items-center gap-1.5 p-1 rounded-2xl backdrop-blur-md border shadow-xs transition-all hover:shadow-md">
                   <a
-                    href="mailto:tcoderex@gmail.com"
+                    href={`https://mail.google.com/mail/?view=cm&fs=1&to=tcoderex@gmail.com&su=${encodeURIComponent(
+                      isAr ? 'أبطال الإسلام - طلب حذف أو استفسار' : 'Islam Heroes - Inquiry or Removal Request'
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
                       isRamadan
                         ? 'bg-[#0f2130] text-amber-200 hover:text-amber-100 hover:bg-[#152e42] border border-amber-500/30 shadow-amber-500/10'
-                        : 'bg-white text-[#0067c0] hover:bg-blue-50/80 border border-blue-200 shadow-2xs'
+                        : 'bg-white text-slate-800 hover:bg-red-50/60 border border-slate-200 shadow-2xs hover:border-red-200'
                     }`}
-                    title={isAr ? 'اضغط لإرسال بريد إلكتروني' : 'Click to send an email'}
+                    title={
+                      isAr
+                        ? 'فتح مراسلة مباشرة عبر موقع Gmail الرسمي (mail.google.com)'
+                        : 'Open direct whisper on official Gmail website (mail.google.com)'
+                    }
                   >
                     <span
                       className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
                         isRamadan
                           ? 'bg-amber-400/20 text-amber-300'
-                          : 'bg-blue-100 text-[#0067c0]'
+                          : 'bg-red-50 text-red-600 border border-red-200/50'
                       }`}
                     >
                       <Mail className="w-3.5 h-3.5" />
@@ -763,7 +780,10 @@ export default function HomePage() {
                     <span className="font-mono tracking-tight font-bold text-xs sm:text-sm">
                       tcoderex@gmail.com
                     </span>
-                    <ExternalLink className="w-3 h-3 opacity-60 hover:opacity-100" />
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 flex items-center gap-1">
+                      <span>Gmail</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </span>
                   </a>
 
                   <button
@@ -1051,15 +1071,31 @@ export default function HomePage() {
                       {/* Card Content */}
                       <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
                         <div>
-                          <h3
-                            className={`text-base sm:text-lg md:text-xl font-bold transition-colors truncate ${
-                              isRamadan
-                                ? 'text-amber-100 group-hover:text-amber-300'
-                                : 'text-slate-900 group-hover:text-[#0067c0]'
-                            }`}
-                          >
-                            {char.name}
-                          </h3>
+                          <div className="flex items-center justify-between gap-2">
+                            <h3
+                              className={`text-base sm:text-lg md:text-xl font-bold transition-colors truncate ${
+                                isRamadan
+                                  ? 'text-amber-100 group-hover:text-amber-300'
+                                  : 'text-slate-900 group-hover:text-[#0067c0]'
+                              }`}
+                            >
+                              {char.name}
+                            </h3>
+                            <button
+                              type="button"
+                              onClick={(e) => handleReadCharacterName(e, char.name, char.id)}
+                              className={`p-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
+                                speakingCardId === char.id
+                                  ? 'bg-emerald-500 text-white animate-pulse'
+                                  : isRamadan
+                                    ? 'text-amber-300/70 hover:text-amber-200 hover:bg-white/10'
+                                    : 'text-slate-400 hover:text-[#0067c0] hover:bg-blue-50'
+                              }`}
+                              title={isAr ? 'قراءة الاسم صوتياً بالعربية' : 'Pronounce name in Arabic'}
+                            >
+                              <Volume2 className="w-4 h-4" />
+                            </button>
+                          </div>
 
                           {char.description ? (
                             <p
@@ -1089,13 +1125,14 @@ export default function HomePage() {
                           }`}
                         >
                           <div className="flex items-center gap-1.5 font-semibold">
-                            <span className="text-[11px] text-slate-400">
+                            <span className="text-[11px] text-slate-400 dark:text-slate-300">
                               {isAr ? 'المرتبة:' : 'Tier:'}
                             </span>
                             <span
-                              className={`px-2.5 py-0.5 rounded-md font-bold text-xs ${charTier.bgLight} ${charTier.textColor} border ${charTier.borderColor}`}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-xs shadow-2xs ${charTier.badgeGradient}`}
                             >
-                              {isAr ? charTier.nameAr : charTier.nameEn}
+                              <TierIcon tierKey={charTier.key} className="w-3 h-3 shrink-0" />
+                              <span>{isAr ? charTier.nameAr : charTier.nameEn}</span>
                             </span>
                           </div>
 

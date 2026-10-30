@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Clock } from 'lucide-react';
+import { X, Clock, Volume2 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
+import { speakInArabic } from '@/lib/arabicTransliteration';
 
 export interface PreviewableCharacter {
   id: string;
@@ -29,6 +30,7 @@ export default function CharacterPreviewModal({
   isAr,
 }: CharacterPreviewModalProps) {
   const [imgError, setImgError] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   if (!character) return null;
 
@@ -123,9 +125,26 @@ export default function CharacterPreviewModal({
             {/* Header: Name, Secondary Name, and Tier Badge + Honor Badge */}
             <div className="mb-3">
               <div className="flex items-start justify-between gap-2">
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-snug">
-                  {character.name}
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-snug">
+                    {character.name}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSpeaking(true);
+                      speakInArabic(character.name, () => setIsSpeaking(false));
+                    }}
+                    className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                      isSpeaking
+                        ? 'bg-emerald-500 text-white border-emerald-600 animate-pulse'
+                        : 'bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-[#0067c0] border-slate-200'
+                    }`}
+                    title={isAr ? 'قراءة الاسم صوتياً بالعربية' : 'Pronounce name in Arabic'}
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                </div>
                 {/* Thematic Tier Badge Pill & Honor Badge */}
                 <div className="flex items-center gap-2 shrink-0">
                   <HonorBadge rating={rating} isAr={isAr} size="sm" />
