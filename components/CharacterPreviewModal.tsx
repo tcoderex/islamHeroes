@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Volume2 } from 'lucide-react';
+import { X, Clock, Volume2, MessageSquare } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
@@ -24,12 +24,14 @@ interface CharacterPreviewModalProps {
   character: PreviewableCharacter | null;
   onClose: () => void;
   isAr: boolean;
+  onOpenComments?: (character: PreviewableCharacter) => void;
 }
 
 export default function CharacterPreviewModal({
   character,
   onClose,
   isAr,
+  onOpenComments,
 }: CharacterPreviewModalProps) {
   const [imgError, setImgError] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -257,11 +259,23 @@ export default function CharacterPreviewModal({
               </div>
             </div>
 
-            {/* Close Action Button */}
-            <div className="pt-2 flex justify-end">
+            {/* Actions: Community Comments Button & Close Button */}
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => {
+                  handleClose();
+                  onOpenComments?.(character);
+                }}
+                className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-[#0067c0] bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>{isAr ? 'التعليقات ومقترحات التقييم' : 'Comments & Rating Suggestions'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClose}
                 className="w-full sm:w-auto px-5 py-2 text-xs font-semibold text-white bg-[#0067c0] hover:bg-[#005fb8] active:scale-[0.98] rounded-xl shadow-xs transition-all cursor-pointer"
               >
                 {isAr ? 'إغلاق' : 'Close Preview'}

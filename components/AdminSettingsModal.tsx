@@ -71,14 +71,28 @@ CREATE TABLE IF NOT EXISTS public.characters (
   updated_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)
 );
 
--- 2. Enable Row Level Security (RLS)
+-- 2. Enable Row Level Security (RLS) on characters
 ALTER TABLE public.characters ENABLE ROW LEVEL SECURITY;
-
--- 3. Set open policies for shared characters app
 CREATE POLICY "Public Read" ON public.characters FOR SELECT USING (true);
 CREATE POLICY "Public Insert" ON public.characters FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public Update" ON public.characters FOR UPDATE USING (true);
-CREATE POLICY "Public Delete" ON public.characters FOR DELETE USING (true);`;
+CREATE POLICY "Public Delete" ON public.characters FOR DELETE USING (true);
+
+-- 3. Create character_comments table for user comments & rating suggestions
+CREATE TABLE IF NOT EXISTS public.character_comments (
+  id TEXT PRIMARY KEY,
+  character_id TEXT NOT NULL,
+  user_name TEXT NOT NULL,
+  text TEXT NOT NULL,
+  suggested_rating INTEGER,
+  created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)
+);
+
+-- 4. Enable Row Level Security on character_comments
+ALTER TABLE public.character_comments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Read Comments" ON public.character_comments FOR SELECT USING (true);
+CREATE POLICY "Public Insert Comments" ON public.character_comments FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public Delete Comments" ON public.character_comments FOR DELETE USING (true);`;
 
   const handleCopySql = () => {
     navigator.clipboard.writeText(supabaseSqlSchema);

@@ -19,6 +19,7 @@ import {
   Volume2,
   Loader2,
   Sliders,
+  MessageSquare,
 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme } from '@/lib/theme';
@@ -58,6 +59,8 @@ interface CharactersViewProps {
     supabaseError?: string;
     url?: string;
   } | null;
+  commentsCounts?: Record<string, number>;
+  onOpenComments?: (char: CustomCharacter) => void;
 }
 
 export type SortOption = 'rating-desc' | 'rating-asc' | 'name-asc' | 'name-desc';
@@ -76,6 +79,8 @@ export default function CharactersView({
   isAr,
   isAdmin = true,
   dbStatus,
+  commentsCounts = {},
+  onOpenComments,
 }: CharactersViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdding, setIsAdding] = useState(false);
@@ -1296,14 +1301,39 @@ export default function CharactersView({
                       </span>
                     </div>
 
-                    <span
-                      className={`inline-flex items-center gap-1 font-bold text-xs group-hover:underline ${
-                        isRamadan ? 'text-amber-300' : 'text-[#0067c0]'
-                      }`}
-                    >
-                      <span>{isAr ? 'معاينة' : 'Preview'}</span>
-                      <span className={isAr ? 'rotate-180' : ''}>→</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {/* Comments & Suggestions button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenComments?.(char);
+                        }}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 ${
+                          isRamadan
+                            ? 'bg-[#152e42] hover:bg-[#1c3c56] text-amber-300 border border-amber-500/40 shadow-amber-500/10'
+                            : 'bg-blue-50 hover:bg-blue-100 text-[#0067c0] border border-blue-200 shadow-blue-500/10'
+                        }`}
+                        title={isAr ? 'عرض تعليقات واقتراحات التقييم' : 'View user comments & rating suggestions'}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="hidden xs:inline sm:inline">
+                          {isAr ? 'التعليقات' : 'Comments'}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/60 dark:bg-black/40 font-mono">
+                          {commentsCounts[char.id] || 0}
+                        </span>
+                      </button>
+
+                      <span
+                        className={`inline-flex items-center gap-1 font-bold text-xs group-hover:underline ${
+                          isRamadan ? 'text-amber-300' : 'text-[#0067c0]'
+                        }`}
+                      >
+                        <span>{isAr ? 'معاينة' : 'Preview'}</span>
+                        <span className={isAr ? 'rotate-180' : ''}>→</span>
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

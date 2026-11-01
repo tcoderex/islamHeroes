@@ -19,12 +19,14 @@ import {
   Volume2,
   Move,
   Loader2,
+  MessageSquare,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal from '@/components/AdminSettingsModal';
 import CharactersView, { CustomCharacter } from '@/components/CharactersView';
 import CharacterPreviewModal, { PreviewableCharacter } from '@/components/CharacterPreviewModal';
 import RepositionPictureModal from '@/components/RepositionPictureModal';
+import CommentsModal from '@/components/CommentsModal';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
@@ -44,6 +46,8 @@ export default function HomePage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [previewCharacter, setPreviewCharacter] = useState<PreviewableCharacter | null>(null);
   const [repositioningChar, setRepositioningChar] = useState<CustomCharacter | null>(null);
+  const [activeCommentsChar, setActiveCommentsChar] = useState<CustomCharacter | null>(null);
+  const [commentsCounts, setCommentsCounts] = useState<Record<string, number>>({});
 
   // Search view state
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,6 +124,19 @@ export default function HomePage() {
     }
   };
 
+  // Fetch all comment counts for cards badge
+  const fetchCommentCounts = async () => {
+    try {
+      const res = await fetch('/api/comments');
+      const data = await res.json();
+      if (data.success && data.countsMap) {
+        setCommentsCounts(data.countsMap);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   // Restore client-persisted state safely post-hydration and sync with shared server API
   useEffect(() => {
     try {
@@ -144,8 +161,9 @@ export default function HomePage() {
       // ignore localStorage access errors
     }
 
-    // Always fetch latest figures in background to keep Supabase synced
+    // Always fetch latest figures and comments in background to keep Supabase synced
     fetchSharedCharacters();
+    fetchCommentCounts();
   }, []);
 
   const showToast = (msg: string) => {
@@ -723,6 +741,8 @@ export default function HomePage() {
             isAr={isAr}
             isAdmin={isAdmin}
             dbStatus={dbStatus}
+            commentsCounts={commentsCounts}
+            onOpenComments={(char) => setActiveCommentsChar(char)}
           />
         ) : (
           /* Public Search & Explore View */
@@ -1244,7 +1264,7 @@ export default function HomePage() {
                           )}
                         </div>
 
-                        {/* Bottom Status */}
+                        {/* Bottom Status & Actions */}
                         <div
                           className={`flex items-center justify-between pt-3 mt-4 border-t w-full text-xs ${
                             isRamadan
@@ -1264,14 +1284,39 @@ export default function HomePage() {
                             </span>
                           </div>
 
-                          <span
-                            className={`inline-flex items-center gap-1 font-bold text-xs group-hover:underline ${
-                              isRamadan ? 'text-amber-300' : 'text-[#0067c0]'
-                            }`}
-                          >
-                            <span>{isAr ? 'معاينة' : 'Preview'}</span>
-                            <span className={isAr ? 'rotate-180' : ''}>→</span>
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {/* Comments & Suggestions button */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveCommentsChar(char);
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 ${
+                                isRamadan
+                                  ? 'bg-[#152e42] hover:bg-[#1c3c56] text-amber-300 border border-amber-500/40 shadow-amber-500/10'
+                                  : 'bg-blue-50 hover:bg-blue-100 text-[#0067c0] border border-blue-200 shadow-blue-500/10'
+                              }`}
+                              title={isAr ? 'عرض تعليقات واقتراحات التقييم' : 'View user comments & rating suggestions'}
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span className="hidden xs:inline sm:inline">
+                                {isAr ? 'التعليقات' : 'Comments'}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/60 dark:bg-black/40 font-mono">
+                                {commentsCounts[char.id] || 0}
+                              </span>
+                            </button>
+
+                            <span
+                              className={`inline-flex items-center gap-1 font-bold text-xs group-hover:underline ${
+                                isRamadan ? 'text-amber-300' : 'text-[#0067c0]'
+                              }`}
+                            >
+                              <span>{isAr ? 'معاينة' : 'Preview'}</span>
+                              <span className={isAr ? 'rotate-180' : ''}>→</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1400,6 +1445,12 @@ export default function HomePage() {
         character={previewCharacter}
         onClose={() => setPreviewCharacter(null)}
         isAr={isAr}
+        onOpenComments={(c) => {
+          const full = characters.find((ch) => ch.id === c.id);
+          if (full) {
+            setActiveCommentsChar(full);
+          }
+        }}
       />
 
       {/* Reposition Picture Modal */}
@@ -1415,6 +1466,20 @@ export default function HomePage() {
         }}
         isAr={isAr}
         theme={theme}
+      />
+
+      {/* User Comments & Rating Suggestions Modal */}
+      <CommentsModal
+        character={activeCommentsChar}
+        isOpen={Boolean(activeCommentsChar)}
+        onClose={() => setActiveCommentsChar(null)}
+        isAdmin={isAdmin}
+        isAr={isAr}
+        theme={theme}
+        onCommentsUpdated={(charId, newCount) => {
+          setCommentsCounts((prev) => ({ ...prev, [charId]: newCount }));
+        }}
+        onShowToast={showToast}
       />
     </div>
   );
