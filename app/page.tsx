@@ -433,36 +433,68 @@ export default function HomePage() {
     }
   };
 
-  const handleExportJSON = () => {
-    if (characters.length === 0) {
-      showToast(isAr ? 'لا توجد شخصيات لتصديرها' : 'No characters to export');
+  const handleExportJSON = async (includeCharacters = true, includeComments = true) => {
+    if (!includeCharacters && !includeComments) {
+      showToast(isAr ? 'يرجى تحديد عنصر واحد على الأقل للتصدير' : 'Please select at least one element to export');
       return;
     }
 
     try {
-      // Formatted with both updated_at (Supabase Postgres) and updatedAt (client app)
-      const supabaseExport = characters.map((c) => ({
-        id: c.id,
-        name: c.name,
-        picture: c.picture || '',
-        rating: typeof c.rating === 'number' ? c.rating : 0,
-        description: c.description || '',
-        imagePosition: c.imagePosition,
-        updated_at: c.updatedAt || Date.now(),
-        updatedAt: c.updatedAt || Date.now(),
-      }));
+      const exportPayload: {
+        version: number;
+        exportedAt: number;
+        characters?: any[];
+        comments?: any[];
+      } = {
+        version: 1,
+        exportedAt: Date.now(),
+      };
 
-      const jsonString = JSON.stringify(supabaseExport, null, 2);
+      if (includeCharacters) {
+        exportPayload.characters = characters.map((c) => ({
+          id: c.id,
+          name: c.name,
+          picture: c.picture || '',
+          rating: typeof c.rating === 'number' ? c.rating : 0,
+          description: c.description || '',
+          imagePosition: c.imagePosition,
+          updated_at: c.updatedAt || Date.now(),
+          updatedAt: c.updatedAt || Date.now(),
+        }));
+      }
+
+      if (includeComments) {
+        try {
+          const res = await fetch('/api/comments');
+          const data = await res.json();
+          if (data.success && Array.isArray(data.comments)) {
+            exportPayload.comments = data.comments;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      let fileKind = 'full-backup';
+      if (includeCharacters && !includeComments) fileKind = 'characters';
+      if (!includeCharacters && includeComments) fileKind = 'comments';
+
+      const jsonString = JSON.stringify(exportPayload, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `heroes-supabase-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      link.download = `heroes-${fileKind}-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      showToast(isAr ? 'تم تصدير النسخة المتوافقة تماماً مع Supabase' : 'Exported Supabase-compatible JSON backup successfully');
+
+      showToast(
+        isAr
+          ? `تم تصدير ملف النسخة الاحتياطية (${fileKind}) بنجاح`
+          : `Exported backup file (${fileKind}) successfully`
+      );
     } catch {
       showToast(isAr ? 'فشل تصدير النسخة الاحتياطية' : 'Failed to export backup file');
     }

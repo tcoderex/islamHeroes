@@ -1,12 +1,25 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
-    font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Roboto, sans-serif;
+  :root {
+    --font-arabic-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Noto Sans Arabic", "Cairo", "Tajawal", "Segoe UI Arabic", "Tahoma", sans-serif;
+  }
+
+  html, body {
+    font-family: var(--font-arabic-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Samsung A40 / Android WebKit form control font family inheritance fix */
+  input, textarea, select, button {
+    font-family: var(--font-arabic-sans);
   }
 }
 
-/* Windows 11 Fluent scrollbar */
+/* Windows 11 & Mobile scrollbar customization */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

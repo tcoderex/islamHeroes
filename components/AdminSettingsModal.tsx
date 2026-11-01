@@ -36,7 +36,7 @@ interface AdminSettingsModalProps {
   onAppendCharacters: (newChars: CustomCharacter[]) => void;
   onReplaceCharacters: (newChars: CustomCharacter[]) => void;
   onImportCharacters: (imported: CustomCharacter[]) => void;
-  onExportCharacters: () => void;
+  onExportCharacters: (includeCharacters?: boolean, includeComments?: boolean) => void;
   onShowToast: (msg: string) => void;
   isAr: boolean;
 }
@@ -59,6 +59,8 @@ export default function AdminSettingsModal({
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [copiedInserts, setCopiedInserts] = useState(false);
+  const [exportCharactersChecked, setExportCharactersChecked] = useState(true);
+  const [exportCommentsChecked, setExportCommentsChecked] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const supabaseSqlSchema = `-- 1. Create characters table in public schema
@@ -193,62 +195,89 @@ ON CONFLICT (id) DO UPDATE SET
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
-        if (!Array.isArray(parsed)) {
-          throw new Error('Not an array');
+        let importedCharsRaw: any[] = [];
+        let importedCommentsRaw: any[] = [];
+
+        if (Array.isArray(parsed)) {
+          if (parsed.length > 0 && typeof parsed[0]?.text === 'string' && typeof parsed[0]?.characterId === 'string') {
+            importedCommentsRaw = parsed;
+          } else {
+            importedCharsRaw = parsed;
+          }
+        } else if (parsed && typeof parsed === 'object') {
+          if (Array.isArray(parsed.characters)) {
+            importedCharsRaw = parsed.characters;
+          }
+          if (Array.isArray(parsed.comments)) {
+            importedCommentsRaw = parsed.comments;
+          }
         }
 
-        const validList: CustomCharacter[] = parsed
-          .filter(
-            (item) =>
-              item &&
-              typeof item === 'object' &&
-              typeof item.name === 'string' &&
-              item.name.trim().length > 0
-          )
-          .map((item, idx) => ({
-            id:
-              typeof item.id === 'string' && item.id.trim()
-                ? item.id
-                : `imported-${Date.now()}-${idx}`,
-            name: String(item.name).trim(),
-            description:
-              typeof item.description === 'string' && item.description.trim()
-                ? item.description.trim()
-                : undefined,
-            picture: typeof item.picture === 'string' ? item.picture.trim() : '',
-            rating:
-              typeof item.rating === 'number' && !isNaN(item.rating)
-                ? Math.max(-1000, Math.min(1000, item.rating))
-                : 500,
-            imagePosition:
-              typeof item.imagePosition === 'string' && item.imagePosition.trim()
-                ? item.imagePosition.trim()
-                : undefined,
-            updatedAt:
-              typeof item.updated_at === 'number'
-                ? item.updated_at
-                : typeof item.updatedAt === 'number'
-                  ? item.updatedAt
-                  : Date.now(),
-          }));
+        let charsCount = 0;
+        let commentsCount = 0;
 
-        if (validList.length === 0) {
+        // Restore Characters
+        if (importedCharsRaw.length > 0) {
+          const validList: CustomCharacter[] = importedCharsRaw
+            .filter((item) => item && typeof item === 'object' && typeof item.name === 'string' && item.name.trim().length > 0)
+            .map((item, idx) => ({
+              id: typeof item.id === 'string' && item.id.trim() ? item.id : `imported-${Date.now()}-${idx}`,
+              name: String(item.name).trim(),
+              description: typeof item.description === 'string' && item.description.trim() ? item.description.trim() : undefined,
+              picture: typeof item.picture === 'string' ? item.picture.trim() : '',
+              rating: typeof item.rating === 'number' && !isNaN(item.rating) ? Math.max(-1000, Math.min(1000, item.rating)) : 500,
+              imagePosition: typeof item.imagePosition === 'string' && item.imagePosition.trim() ? item.imagePosition.trim() : undefined,
+              updatedAt: typeof item.updated_at === 'number' ? item.updated_at : typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
+            }));
+
+          if (validList.length > 0) {
+            onImportCharacters(validList);
+            charsCount = validList.length;
+          }
+        }
+
+        // Restore Comments
+        if (importedCommentsRaw.length > 0) {
+          for (const c of importedCommentsRaw) {
+            if (c && typeof c === 'object' && typeof c.characterId === 'string' && typeof c.text === 'string' && c.text.trim()) {
+              try {
+                await fetch('/api/comments', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    characterId: c.characterId,
+                    userName: typeof c.userName === 'string' ? c.userName : 'Guest',
+                    text: c.text,
+                  }),
+                });
+                commentsCount++;
+              } catch {
+                // ignore
+              }
+            }
+          }
+        }
+
+        if (charsCount === 0 && commentsCount === 0) {
           onShowToast(
             isAr
-              ? 'الملف لا يحتوي على بيانات شخصيات صالحة'
-              : 'File does not contain valid character records'
+              ? 'الملف لا يحتوي على بيانات شخصيات أو تعليقات صالحة'
+              : 'File does not contain valid character or comment records'
           );
           return;
         }
 
-        onImportCharacters(validList);
+        const msgs: string[] = [];
+        if (charsCount > 0) msgs.push(isAr ? `${charsCount} شخصية` : `${charsCount} figures`);
+        if (commentsCount > 0) msgs.push(isAr ? `${commentsCount} تعليق` : `${commentsCount} comments`);
+
         onShowToast(
           isAr
-            ? `تمت استعادة ${validList.length} شخصية بنجاح من النسخة الاحتياطية`
-            : `Successfully restored ${validList.length} figures from backup`
+            ? `تمت استعادة ${msgs.join(' و ')} بنجاح من النسخة الاحتياطية`
+            : `Successfully restored ${msgs.join(' and ')} from backup`
         );
       } catch {
         onShowToast(
@@ -759,20 +788,44 @@ ON CONFLICT (id) DO UPDATE SET
                       <span>{isAr ? 'تصدير نسخة احتياطية (JSON)' : 'Export Backup (JSON)'}</span>
                     </div>
                     <p
-                      className={`text-[11px] mb-3 ${
+                      className={`text-[11px] mb-2.5 ${
                         isRamadan ? 'text-amber-200/60' : 'text-slate-500'
                       }`}
                     >
                       {isAr
-                        ? 'تنزيل ملف بصيغة JSON يحتوي على كامل الأسماء والصور والتقييمات.'
-                        : 'Download a JSON file containing all characters, images, and ratings.'}
+                        ? 'حدد العناصر المراد تصديرها:'
+                        : 'Select data elements to include in export:'}
                     </p>
+
+                    {/* Interactive Checkboxes for Export Selection */}
+                    <div className="space-y-2 mb-3.5 p-2.5 rounded-xl border border-slate-200/80 dark:border-amber-500/20 bg-slate-50/70 dark:bg-black/20">
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-800 dark:text-amber-100">
+                        <input
+                          type="checkbox"
+                          checked={exportCharactersChecked}
+                          onChange={(e) => setExportCharactersChecked(e.target.checked)}
+                          className="w-4 h-4 rounded text-[#0067c0] accent-[#0067c0] cursor-pointer"
+                        />
+                        <span>{isAr ? 'شخصيات وأبطال الإسلام (Characters)' : 'Figures & Characters'}</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-800 dark:text-amber-100">
+                        <input
+                          type="checkbox"
+                          checked={exportCommentsChecked}
+                          onChange={(e) => setExportCommentsChecked(e.target.checked)}
+                          className="w-4 h-4 rounded text-[#0067c0] accent-[#0067c0] cursor-pointer"
+                        />
+                        <span>{isAr ? 'تعليقات وآراء المستخدمين (Comments)' : 'User Comments & Opinions'}</span>
+                      </label>
+                    </div>
                   </div>
 
                   <button
                     type="button"
-                    onClick={onExportCharacters}
-                    className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    onClick={() => onExportCharacters(exportCharactersChecked, exportCommentsChecked)}
+                    disabled={!exportCharactersChecked && !exportCommentsChecked}
+                    className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       isRamadan
                         ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-sm'
                         : 'bg-[#0067c0] text-white hover:bg-[#005fb8] shadow-sm'
