@@ -75,6 +75,7 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
             };
           });
           memoryCache = mapped;
+          saveLocalCharacters(mapped);
           return mapped;
         } else {
           // Auto-seed Supabase characters table with seed data

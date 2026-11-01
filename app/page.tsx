@@ -18,6 +18,7 @@ import {
   Check,
   Volume2,
   Move,
+  Loader2,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal from '@/components/AdminSettingsModal';
@@ -54,7 +55,8 @@ export default function HomePage() {
   const isAr = lang === 'ar';
 
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [characters, setCharacters] = useState<CustomCharacter[]>(DEFAULT_CHARACTERS);
+  const [characters, setCharacters] = useState<CustomCharacter[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [dbStatus, setDbStatus] = useState<{
     provider: 'supabase' | 'netlify-blobs' | 'local';
     supabaseConnected: boolean;
@@ -113,36 +115,37 @@ export default function HomePage() {
       }
     } catch {
       // Fallback to localStorage if offline
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Restore client-persisted state safely post-hydration and sync with shared server API
   useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        const savedAdmin = localStorage.getItem('heroes_admin_active');
-        if (savedAdmin === 'true') {
-          setIsAdmin(true);
-        }
-        const savedTheme = localStorage.getItem('heroes_app_theme');
-        if (savedTheme === 'tgis' || savedTheme === 'ramadan') {
-          setTheme(savedTheme);
-        }
-        const savedChars = localStorage.getItem('heroes_custom_characters');
-        if (savedChars) {
-          const parsed = JSON.parse(savedChars);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setCharacters(parsed);
-          }
-        }
-      } catch {
-        // ignore localStorage access errors
+    try {
+      const savedAdmin = localStorage.getItem('heroes_admin_active');
+      if (savedAdmin === 'true') {
+        setIsAdmin(true);
       }
+      const savedTheme = localStorage.getItem('heroes_app_theme');
+      if (savedTheme === 'tgis' || savedTheme === 'ramadan') {
+        setTheme(savedTheme);
+      }
+      // Instant cache restoration: if user previously visited, display figures immediately with 0ms wait!
+      const savedChars = localStorage.getItem('heroes_custom_characters');
+      if (savedChars) {
+        const parsed = JSON.parse(savedChars);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCharacters(parsed);
+          setIsLoading(false);
+        }
+      }
+    } catch {
+      // ignore localStorage access errors
+    }
 
-      fetchSharedCharacters();
-    }, 0);
-
-    return () => clearTimeout(timer);
+    // Always fetch latest figures in background to keep Supabase synced
+    fetchSharedCharacters();
   }, []);
 
   const showToast = (msg: string) => {
@@ -708,6 +711,7 @@ export default function HomePage() {
         {isAdmin && activeTab === 'characters' ? (
           <CharactersView
             characters={characters}
+            isLoading={isLoading}
             onAddCharacter={handleAddCharacter}
             onUpdateCharacter={handleUpdateCharacter}
             onDeleteCharacter={handleDeleteCharacter}
@@ -1006,35 +1010,125 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Character Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4 md:gap-6">
-              {filteredSearchCharacters.length === 0 ? (
-                <div className="col-span-full py-12 text-center bg-white/70 dark:bg-black/30 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-6">
-                  <p className="text-xs sm:text-sm text-slate-500 mb-3">
-                    {searchQuery
-                      ? isAr
-                        ? `لم يتم العثور على نتائج مطابقة لـ "${searchQuery}"`
-                        : `No figures found matching "${searchQuery}"`
-                      : isAr
-                        ? 'لا توجد شخصيات حتى الآن'
-                        : 'No figures found.'}
-                  </p>
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setSearchPage(1);
-                      }}
-                      className="px-3.5 py-1.5 text-xs font-semibold text-[#0067c0] bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
-                    >
-                      {isAr ? 'عرض جميع الشخصيات' : 'Show All Figures'}
-                    </button>
-                  )}
+            {/* Character Cards Grid or Fast Database Loading Skeleton */}
+            {isLoading ? (
+              <div className="space-y-4">
+                <div
+                  className={`flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border backdrop-blur-md animate-pulse ${
+                    isRamadan
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      : 'bg-blue-50 border-blue-200/80 text-[#0067c0]'
+                  }`}
+                >
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  <span className="text-xs sm:text-sm font-semibold">
+                    {isAr
+                      ? 'جاري مزامنة وتحميل شخصياتك من قاعدة بيانات Supabase...'
+                      : 'Syncing and loading your figures from Supabase database...'}
+                  </span>
                 </div>
-              ) : (
-                paginatedSearchCharacters.map((char) => {
-                  const charTier = getRatingTier(char.rating);
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4 md:gap-6">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={`search-skel-${i}`}
+                      className={`relative flex flex-col rounded-2xl md:rounded-3xl border overflow-hidden backdrop-blur-xl animate-pulse ${
+                        isRamadan
+                          ? 'bg-[#0f1e2c]/80 border-amber-500/20'
+                          : 'bg-white/80 border-slate-200/80'
+                      }`}
+                    >
+                      <div
+                        className={`relative w-full h-60 sm:h-68 md:h-76 lg:h-84 ${
+                          isRamadan ? 'bg-[#152738]' : 'bg-slate-200'
+                        }`}
+                      >
+                        <div
+                          className={`absolute top-3 left-3 w-16 h-6 rounded-full ${
+                            isRamadan ? 'bg-amber-400/20' : 'bg-slate-300'
+                          }`}
+                        />
+                        <div
+                          className={`absolute top-3 left-1/2 -translate-x-1/2 w-14 h-6 rounded-full ${
+                            isRamadan ? 'bg-amber-400/20' : 'bg-slate-300'
+                          }`}
+                        />
+                      </div>
+                      <div className="p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div
+                              className={`h-5 w-2/3 rounded-lg ${
+                                isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'
+                              }`}
+                            />
+                            <div
+                              className={`h-7 w-7 rounded-lg ${
+                                isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'
+                              }`}
+                            />
+                          </div>
+                          <div
+                            className={`h-3.5 w-full rounded-md ${
+                              isRamadan ? 'bg-amber-400/10' : 'bg-slate-100'
+                            }`}
+                          />
+                          <div
+                            className={`h-3.5 w-4/5 rounded-md ${
+                              isRamadan ? 'bg-amber-400/10' : 'bg-slate-100'
+                            }`}
+                          />
+                        </div>
+                        <div
+                          className={`pt-3 border-t flex items-center justify-between ${
+                            isRamadan ? 'border-amber-500/15' : 'border-slate-100'
+                          }`}
+                        >
+                          <div
+                            className={`h-5 w-24 rounded-full ${
+                              isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'
+                            }`}
+                          />
+                          <div
+                            className={`h-4 w-12 rounded ${
+                              isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4 md:gap-6">
+                {filteredSearchCharacters.length === 0 ? (
+                  <div className="col-span-full py-12 text-center bg-white/70 dark:bg-black/30 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-6">
+                    <p className="text-xs sm:text-sm text-slate-500 mb-3">
+                      {searchQuery
+                        ? isAr
+                          ? `لم يتم العثور على نتائج مطابقة لـ "${searchQuery}"`
+                          : `No figures found matching "${searchQuery}"`
+                        : isAr
+                          ? 'لا توجد شخصيات حتى الآن'
+                          : 'No figures found.'}
+                    </p>
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setSearchPage(1);
+                        }}
+                        className="px-3.5 py-1.5 text-xs font-semibold text-[#0067c0] bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
+                      >
+                        {isAr ? 'عرض جميع الشخصيات' : 'Show All Figures'}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  paginatedSearchCharacters.map((char) => {
+                    const charTier = getRatingTier(char.rating);
 
                   return (
                     <div
@@ -1185,6 +1279,7 @@ export default function HomePage() {
                 })
               )}
             </div>
+          )}
 
             {/* Pagination Controls */}
             {filteredSearchCharacters.length > SEARCH_ITEMS_PER_PAGE && (
