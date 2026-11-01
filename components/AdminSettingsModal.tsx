@@ -58,6 +58,7 @@ export default function AdminSettingsModal({
   const [showConfirmReplace, setShowConfirmReplace] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
+  const [copiedInserts, setCopiedInserts] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const supabaseSqlSchema = `-- 1. Create characters table in public schema
@@ -84,6 +85,45 @@ CREATE POLICY "Public Delete" ON public.characters FOR DELETE USING (true);`;
     setCopiedSql(true);
     setTimeout(() => setCopiedSql(false), 2500);
     onShowToast(isAr ? 'تم نسخ استعلام SQL إلى الحافظة' : 'SQL Schema copied to clipboard');
+  };
+
+  const handleCopySupabaseInserts = () => {
+    if (characters.length === 0) {
+      onShowToast(isAr ? 'لا توجد شخصيات لنسخها' : 'No characters to export');
+      return;
+    }
+
+    const escapeSql = (str: string) => str.replace(/'/g, "''");
+
+    const valuesList = characters
+      .map((c) => {
+        let desc = c.description ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').trim() : '';
+        if (c.imagePosition) {
+          desc = desc ? `${desc} [[pos:${c.imagePosition}]]` : `[[pos:${c.imagePosition}]]`;
+        }
+        return `  ('${escapeSql(c.id)}', '${escapeSql(c.name)}', '${escapeSql(c.picture || '')}', ${Number(c.rating) || 0}, '${escapeSql(desc)}', ${c.updatedAt || Date.now()})`;
+      })
+      .join(',\n');
+
+    const sql = `-- Supabase SQL: Populate/Sync all ${characters.length} characters in public.characters table
+INSERT INTO public.characters (id, name, picture, rating, description, updated_at)
+VALUES
+${valuesList}
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  picture = EXCLUDED.picture,
+  rating = EXCLUDED.rating,
+  description = EXCLUDED.description,
+  updated_at = EXCLUDED.updated_at;`;
+
+    navigator.clipboard.writeText(sql);
+    setCopiedInserts(true);
+    setTimeout(() => setCopiedInserts(false), 2500);
+    onShowToast(
+      isAr
+        ? `تم نسخ استعلام SQL لإدراج ${characters.length} شخصية في Supabase!`
+        : `Copied SQL to insert ${characters.length} characters into Supabase!`
+    );
   };
 
   const handleSyncToSupabase = async () => {
@@ -169,6 +209,16 @@ CREATE POLICY "Public Delete" ON public.characters FOR DELETE USING (true);`;
               typeof item.rating === 'number' && !isNaN(item.rating)
                 ? Math.max(-1000, Math.min(1000, item.rating))
                 : 500,
+            imagePosition:
+              typeof item.imagePosition === 'string' && item.imagePosition.trim()
+                ? item.imagePosition.trim()
+                : undefined,
+            updatedAt:
+              typeof item.updated_at === 'number'
+                ? item.updated_at
+                : typeof item.updatedAt === 'number'
+                  ? item.updatedAt
+                  : Date.now(),
           }));
 
         if (validList.length === 0) {
@@ -897,6 +947,53 @@ CREATE POLICY "Public Delete" ON public.characters FOR DELETE USING (true);`;
                 <pre className="p-3 bg-slate-950 text-emerald-300 font-mono text-[11px] rounded-xl overflow-x-auto border border-slate-800 leading-relaxed text-left" dir="ltr">
                   <code>{supabaseSqlSchema}</code>
                 </pre>
+              </div>
+
+              {/* Instant SQL INSERTs for all characters */}
+              <div
+                className={`p-4 rounded-2xl border space-y-2.5 ${
+                  isRamadan
+                    ? 'border-amber-500/25 bg-[#0e1d2c]'
+                    : 'border-slate-200 bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-amber-200">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>
+                      {isAr
+                        ? `إدراج جميع الشخصيات (${characters.length}) في Supabase عبر SQL:`
+                        : `Instant SQL INSERTs for all characters (${characters.length}):`}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopySupabaseInserts}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      copiedInserts
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                    }`}
+                  >
+                    {copiedInserts ? (
+                      <>
+                        <Check className="w-3 h-3" />
+                        <span>{isAr ? 'تم نسخ الأوامر!' : 'Copied!'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>{isAr ? 'نسخ أوامر INSERT' : 'Copy INSERT SQL'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {isAr
+                    ? 'ينشئ كود SQL جاهزاً للتشغيل المباشر في Supabase مع خاصية ON CONFLICT لمنع التكرار وتحديث البيانات فورياً.'
+                    : 'Generates ready-to-run PostgreSQL INSERT queries with ON CONFLICT clause for instant insertion or updating in Supabase SQL editor.'}
+                </p>
               </div>
             </div>
           )}

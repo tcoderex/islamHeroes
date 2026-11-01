@@ -1,16 +1,18 @@
 /**
- * Arabic Name Transliteration and Pronunciation Utility
- * Supports converting English/Latin names (e.g., "abdallah rushdi") to Arabic script,
- * and reading names aloud using browser SpeechSynthesis in Arabic.
+ * Arabic & English Name Transliteration, Localization and Speech Utility
+ * - Bidirectional name localization: English in 'en' mode, Arabic in 'ar' mode.
+ * - Speech synthesis without annoying synth chimes/Mario sounds.
  */
 
 // Common name dictionary for accurate Islamic, historical, and modern figures
-const NAME_DICTIONARY: Record<string, string> = {
+const NAME_DICTIONARY_EN_TO_AR: Record<string, string> = {
   // Exact user example
   'abdallah rushdi': 'عبد الله رشدي',
   'abdullah rushdi': 'عبد الله رشدي',
   'abdallah roshdi': 'عبد الله رشدي',
   'abdullah roshdi': 'عبد الله رشدي',
+  'sheikh abdullah rushdy': 'الشيخ عبد الله رشدي',
+  'sheikh abdallah rushdi': 'الشيخ عبد الله رشدي',
   'rushdi': 'رشدي',
   'roshdi': 'رشدي',
 
@@ -19,7 +21,8 @@ const NAME_DICTIONARY: Record<string, string> = {
   'khalid ibn al walid': 'خالد بن الوليد',
   'khalid': 'خالد',
   'salahuddin': 'صلاح الدين الأيوبي',
-  'salah al-din': 'صلاح الدين',
+  'salah al-din': 'صلاح الدين الأيوبي',
+  'salahuddin al-ayyubi': 'صلاح الدين الأيوبي',
   'saladin': 'صلاح الدين الأيوبي',
   'tariq ibn ziyad': 'طارق بن زياد',
   'tariq': 'طارق',
@@ -55,6 +58,21 @@ const NAME_DICTIONARY: Record<string, string> = {
   'amr ibn al-as': 'عمرو بن العاص',
   'amr': 'عمرو',
   'muawiyah': 'معاوية',
+  'harun al-rashid': 'هارون الرشيد',
+  'sultan baybars': 'الظاهر بيبرس',
+  'baybars': 'الظاهر بيبرس',
+
+  // Al-Azhar Scholars
+  'sheikh muhammad metwalli al-sha\'rawi': 'الشيخ محمد متولي الشعراوي',
+  'muhammad metwalli al-sharawi': 'الشيخ محمد متولي الشعراوي',
+  'grand imam dr. ahmed el-tayeb': 'الإمام الأكبر د. أحمد الطيب',
+  'sheikh abdel-halim mahmoud': 'الشيخ عبد الحليم محمود',
+  'sheikh gad al-haq ali gad al-haq': 'الشيخ جاد الحق علي جاد الحق',
+  'sheikh mahmoud shaltout': 'الشيخ محمود شلتوت',
+  'sheikh muhammad mustafa al-maraghi': 'الشيخ محمد مصطفى المراغي',
+  'sheikh muhammad abduh': 'الشيخ محمد عبده',
+  'sheikh hassan al-attar': 'الشيخ حسن العطار',
+  'imam ibrahim al-bajuri': 'الإمام إبراهيم الباجوري',
 
   // Scholars & Scientists
   'ibn sina': 'ابن سينا',
@@ -98,13 +116,82 @@ const NAME_DICTIONARY: Record<string, string> = {
   'mehmed ii': 'محمد الفاتح',
   'suleiman the magnificent': 'سليمان القانوني',
   'suleiman': 'سليمان',
-  'baybars': 'الظاهر بيبرس',
   'qutuz': 'سيف الدين قطز',
+  'saif ad-din qutuz': 'سيف الدين قطز',
   'nur ad-din zangi': 'نور الدين زنكي',
   'alparslan': 'ألب أرسلان',
 };
 
-// Word-level components (Abdullah, Abdul-Rahman, Ibn, Abu, etc.)
+// Reverse Dictionary: Arabic to English
+const NAME_DICTIONARY_AR_TO_EN: Record<string, string> = {
+  // Al-Azhar Scholars
+  'الشيخ عبد الله رشدي': 'Sheikh Abdullah Rushdy',
+  'عبد الله رشدي': 'Abdullah Rushdy',
+  'الشيخ محمد متولي الشعراوي': 'Sheikh Muhammad Metwalli Al-Sha\'rawi',
+  'الإمام الأكبر د. أحمد الطيب': 'Grand Imam Dr. Ahmed El-Tayeb',
+  'الشيخ عبد الحليم محمود': 'Sheikh Abdel-Halim Mahmoud',
+  'الشيخ جاد الحق علي جاد الحق': 'Sheikh Gad al-Haq Ali Gad al-Haq',
+  'الشيخ محمود شلتوت': 'Sheikh Mahmoud Shaltout',
+  'الشيخ محمد مصطفى المراغي': 'Sheikh Muhammad Mustafa Al-Maraghi',
+  'الشيخ محمد عبده': 'Sheikh Muhammad Abduh',
+  'الشيخ حسن العطار': 'Sheikh Hassan Al-Attar',
+  'الإمام إبراهيم الباجوري': 'Imam Ibrahim Al-Bajuri',
+  'الإمام محمد بن أحمد بن عبد الله الباجوري': 'Imam Ibrahim Al-Bajuri',
+
+  // Companions and Leaders
+  'خالد بن الوليد': 'Khalid ibn al-Walid',
+  'صلاح الدين الأيوبي': 'Salahuddin al-Ayyubi',
+  'صلاح الدين': 'Salahuddin',
+  'أبو بكر الصديق': 'Abu Bakr al-Siddiq',
+  'أبو بكر': 'Abu Bakr',
+  'عمر بن الخطاب': 'Umar ibn al-Khattab',
+  'عثمان بن عفان': 'Uthman ibn Affan',
+  'علي بن أبي طالب': 'Ali ibn Abi Talib',
+  'طارق بن زياد': 'Tariq ibn Ziyad',
+  'فاطمة الفهرية': 'Fatima al-Fihri',
+  'هارون الرشيد': 'Harun al-Rashid',
+  'الظاهر بيبرس': 'Sultan Baybars',
+  'سيف الدين قطز': 'Saif ad-Din Qutuz',
+  'نور الدين زنكي': 'Nur ad-Din Zangi',
+  'محمد الفاتح': 'Mehmed the Conqueror',
+  'السلطان محمد الفاتح': 'Sultan Mehmed the Conqueror',
+  'سليمان القانوني': 'Suleiman the Magnificent',
+  'ألب أرسلان': 'Alp Arslan',
+  'عمر المختار': 'Omar al-Mukhtar',
+  'عبد القادر الجزائري': 'Emir Abdelkader',
+  'عز الدين القسام': 'Izz ad-Din al-Qassam',
+  'أحمد ديدات': 'Ahmed Deedat',
+  'مالكولم إكس': 'Malcolm X',
+  'مالكولم إكس (الحاج مالك الشباز)': 'Malcolm X (El-Hajj Malik El-Shabazz)',
+  'تشنغ خه': 'Zheng He',
+  'تشنغ خه (حاجي محمود شمس)': 'Zheng He (Hajji Mahmud Shams)',
+
+  // Scholars & Scientists
+  'ابن سينا': 'Ibn Sina (Avicenna)',
+  'ابن رشد': 'Ibn Rushd (Averroes)',
+  'ابن بطوطة': 'Ibn Battuta',
+  'ابن خلدون': 'Ibn Khaldun',
+  'ابن الهيثم': 'Ibn al-Haytham (Alhazen)',
+  'الخوارزمي': 'Al-Khwarizmi',
+  'البيروني': 'Al-Biruni',
+  'الفارابي': 'Al-Farabi',
+  'الرازي': 'Al-Razi (Rhazes)',
+  'الكندي': 'Al-Kindi',
+  'الغزالي': 'Al-Ghazali',
+  'الإمام البخاري': 'Imam Al-Bukhari',
+  'البخاري': 'Al-Bukhari',
+  'مسلم': 'Imam Muslim',
+  'الشافعي': 'Imam Al-Shafi\'i',
+  'أبو حنيفة': 'Imam Abu Hanifa',
+  'مالك بن أنس': 'Malik ibn Anas',
+  'مالك': 'Imam Malik',
+  'أحمد بن حنبل': 'Ahmad ibn Hanbal',
+  'ابن تيمية': 'Ibn Taymiyyah',
+  'النووي': 'Imam Al-Nawawi',
+  'السيوطي': 'Al-Suyuti',
+};
+
+// Word-level components (English -> Arabic)
 const COMPOUND_PREFIXES: Record<string, string> = {
   'abdallah': 'عبد الله',
   'abdullah': 'عبد الله',
@@ -129,8 +216,68 @@ const COMPOUND_PREFIXES: Record<string, string> = {
   'sayyida': 'السيدة',
 };
 
-// Common individual words
-const WORD_MAP: Record<string, string> = {
+// Arabic to English prefix and word components
+const AR_TO_EN_WORDS: Record<string, string> = {
+  'الشيخ': 'Sheikh',
+  'الإمام': 'Imam',
+  'الدكتور': 'Dr.',
+  'د.': 'Dr.',
+  'السلطان': 'Sultan',
+  'الأمير': 'Emir',
+  'بن': 'ibn',
+  'ابن': 'Ibn',
+  'بنت': 'bint',
+  'أبو': 'Abu',
+  'أبي': 'Abi',
+  'عبد الله': 'Abdullah',
+  'عبدالرحمن': 'Abdul-Rahman',
+  'عبد الرحمن': 'Abdul-Rahman',
+  'عبدالعزيز': 'Abdul-Aziz',
+  'عبد العزيز': 'Abdul-Aziz',
+  'محمد': 'Muhammad',
+  'أحمد': 'Ahmed',
+  'محمود': 'Mahmoud',
+  'علي': 'Ali',
+  'عمر': 'Umar',
+  'عثمان': 'Uthman',
+  'خالد': 'Khalid',
+  'رشدي': 'Rushdy',
+  'الشعراوي': 'Al-Sha\'rawi',
+  'الطيب': 'El-Tayeb',
+  'مصطفى': 'Mustafa',
+  'حمزة': 'Hamza',
+  'يوسف': 'Youssef',
+  'إبراهيم': 'Ibrahim',
+  'إسماعيل': 'Ismail',
+  'إسحاق': 'Ishaq',
+  'يعقوب': 'Yaqub',
+  'موسى': 'Musa',
+  'هارون': 'Harun',
+  'عيسى': 'Isa',
+  'داود': 'Dawud',
+  'سليمان': 'Suleiman',
+  'أيوب': 'Ayyoub',
+  'زكريا': 'Zakariya',
+  'يحيى': 'Yahya',
+  'يونس': 'Yunus',
+  'إلياس': 'Ilyas',
+  'صالح': 'Salih',
+  'آدم': 'Adam',
+  'نوح': 'Nuh',
+  'حسن': 'Hassan',
+  'حسين': 'Hussein',
+  'طارق': 'Tariq',
+  'زياد': 'Ziyad',
+  'الوليد': 'al-Walid',
+  'الصديق': 'al-Siddiq',
+  'الفاروق': 'al-Faruq',
+  'الفهرية': 'al-Fihri',
+  'الرشيد': 'al-Rashid',
+  'الأيوبي': 'al-Ayyubi',
+};
+
+// Common individual words (English -> Arabic)
+const EN_TO_AR_WORDS: Record<string, string> = {
   'rahman': 'الرحمن',
   'rahim': 'الرحيم',
   'aziz': 'العزيز',
@@ -185,15 +332,14 @@ const WORD_MAP: Record<string, string> = {
 };
 
 /**
- * Phonetic letter transliteration for unmatched terms
+ * Phonetic letter transliteration for English words -> Arabic
  */
-function transliterateWord(word: string): string {
+function transliterateEnWordToAr(word: string): string {
   const clean = word.toLowerCase().trim();
   if (!clean) return '';
 
-  if (WORD_MAP[clean]) return WORD_MAP[clean];
+  if (EN_TO_AR_WORDS[clean]) return EN_TO_AR_WORDS[clean];
 
-  // Compound replacements:
   let w = clean;
   w = w.replace(/sh/g, 'ش');
   w = w.replace(/kh/g, 'خ');
@@ -239,11 +385,9 @@ function transliterateWord(word: string): string {
   let res = '';
   for (let i = 0; i < w.length; i++) {
     const ch = w[i];
-    // If it's already an Arabic character
     if (/[\u0600-\u06FF]/.test(ch)) {
       res += ch;
     } else if (charMap[ch]) {
-      // Avoid duplicate consecutive identical long vowels
       const converted = charMap[ch];
       if ((converted === 'ا' || converted === 'و' || converted === 'ي') && res.endsWith(converted)) {
         continue;
@@ -252,7 +396,6 @@ function transliterateWord(word: string): string {
     }
   }
 
-  // Final touches
   res = res.replace(/عبد الـ(\S+)/g, 'عبد ال$1');
   return res;
 }
@@ -265,16 +408,13 @@ export function hasArabicCharacters(text: string): boolean {
 }
 
 /**
- * Converts any name (English, Latin transliteration, compound name) to Arabic script.
- * e.g., "abdallah rushdi" -> "عبد الله رشدي"
+ * Converts any name (English or Latin transliteration) into Arabic script
  */
 export function convertNameToArabic(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return '';
 
-  // If already predominantly Arabic, return cleaned
   if (hasArabicCharacters(trimmed)) {
-    // If it has both english and arabic in parens like "عمر بن الخطاب (Umar)", extract the arabic
     const arMatch = trimmed.match(/[\u0600-\u06FF\s]+/g);
     if (arMatch) {
       const best = arMatch.join(' ').trim().replace(/\s+/g, ' ');
@@ -285,23 +425,20 @@ export function convertNameToArabic(input: string): string {
 
   const normalized = trimmed.toLowerCase().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ');
 
-  // 1. Exact match in dictionary
-  if (NAME_DICTIONARY[normalized]) {
-    return NAME_DICTIONARY[normalized];
+  if (NAME_DICTIONARY_EN_TO_AR[normalized]) {
+    return NAME_DICTIONARY_EN_TO_AR[normalized];
   }
 
-  // 2. Check compound prefixes (e.g., "abdallah rushdi", "abdel rahman", "ibn rushd")
   const words = normalized.split(' ');
   const arabicWords: string[] = [];
 
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
 
-    // Check 2-word combinations like "abd allah", "ibn al", "abu bakr"
     if (i + 1 < words.length) {
       const twoWords = `${w} ${words[i + 1]}`;
-      if (NAME_DICTIONARY[twoWords]) {
-        arabicWords.push(NAME_DICTIONARY[twoWords]);
+      if (NAME_DICTIONARY_EN_TO_AR[twoWords]) {
+        arabicWords.push(NAME_DICTIONARY_EN_TO_AR[twoWords]);
         i++;
         continue;
       }
@@ -313,31 +450,191 @@ export function convertNameToArabic(input: string): string {
     }
 
     if (COMPOUND_PREFIXES[w]) {
-      // Special handle: "abdallah" -> "عبد الله"
       arabicWords.push(COMPOUND_PREFIXES[w]);
       continue;
     }
 
-    if (NAME_DICTIONARY[w]) {
-      arabicWords.push(NAME_DICTIONARY[w]);
+    if (NAME_DICTIONARY_EN_TO_AR[w]) {
+      arabicWords.push(NAME_DICTIONARY_EN_TO_AR[w]);
       continue;
     }
 
-    if (WORD_MAP[w]) {
-      arabicWords.push(WORD_MAP[w]);
+    if (EN_TO_AR_WORDS[w]) {
+      arabicWords.push(EN_TO_AR_WORDS[w]);
       continue;
     }
 
-    // Transliterate phonetic word
-    arabicWords.push(transliterateWord(w));
+    arabicWords.push(transliterateEnWordToAr(w));
   }
 
   let finalResult = arabicWords.join(' ').trim();
-  // Clean up "عبد الـ رحمن" -> "عبد الرحمن"
   finalResult = finalResult.replace(/عبد الـ\s*/g, 'عبد ال');
   finalResult = finalResult.replace(/الـ\s*/g, 'ال');
 
   return finalResult || trimmed;
+}
+
+/**
+ * Converts an Arabic name into standard, readable English/Latin script
+ */
+export function convertArabicToEnglish(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+
+  // Direct dictionary lookup
+  if (NAME_DICTIONARY_AR_TO_EN[trimmed]) {
+    return NAME_DICTIONARY_AR_TO_EN[trimmed];
+  }
+
+  // Check without honorific titles
+  const cleanTitle = trimmed
+    .replace(/^الشيخ\s+/, '')
+    .replace(/^الإمام\s+/, '')
+    .replace(/^السلطان\s+/, '');
+  if (NAME_DICTIONARY_AR_TO_EN[cleanTitle]) {
+    const prefix = trimmed.startsWith('الشيخ')
+      ? 'Sheikh '
+      : trimmed.startsWith('الإمام')
+        ? 'Imam '
+        : trimmed.startsWith('السلطان')
+          ? 'Sultan '
+          : '';
+    return prefix + NAME_DICTIONARY_AR_TO_EN[cleanTitle];
+  }
+
+  // Word-by-word mapping
+  const words = trimmed.split(/\s+/);
+  const enWords: string[] = [];
+
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+
+    // Check two-word combinations (e.g. عبد الله)
+    if (i + 1 < words.length) {
+      const pair = `${w} ${words[i + 1]}`;
+      if (AR_TO_EN_WORDS[pair]) {
+        enWords.push(AR_TO_EN_WORDS[pair]);
+        i++;
+        continue;
+      }
+    }
+
+    if (AR_TO_EN_WORDS[w]) {
+      enWords.push(AR_TO_EN_WORDS[w]);
+      continue;
+    }
+
+    // Phonetic transliteration for unknown Arabic words
+    enWords.push(transliterateArWordToEn(w));
+  }
+
+  return enWords.join(' ').trim();
+}
+
+/**
+ * Phonetic transliterator: Arabic word -> English
+ */
+function transliterateArWordToEn(word: string): string {
+  if (!word) return '';
+  if (!hasArabicCharacters(word)) return word;
+
+  const arCharMap: Record<string, string> = {
+    'ا': 'a',
+    'أ': 'A',
+    'إ': 'I',
+    'آ': 'Aa',
+    'ب': 'b',
+    'ت': 't',
+    'ث': 'th',
+    'ج': 'j',
+    'ح': 'h',
+    'خ': 'kh',
+    'د': 'd',
+    'ذ': 'dh',
+    'ر': 'r',
+    'ز': 'z',
+    'س': 's',
+    'ش': 'sh',
+    'ص': 's',
+    'ض': 'd',
+    'ط': 't',
+    'ظ': 'z',
+    'ع': 'a',
+    'غ': 'gh',
+    'ف': 'f',
+    'ق': 'q',
+    'ك': 'k',
+    'ل': 'l',
+    'م': 'm',
+    'ن': 'n',
+    'ه': 'h',
+    'و': 'w',
+    'ي': 'y',
+    'ى': 'a',
+    'ة': 'ah',
+    'ء': '',
+    'ئ': 'i',
+    'ؤ': 'u',
+  };
+
+  let out = '';
+  for (let i = 0; i < word.length; i++) {
+    const c = word[i];
+    out += arCharMap[c] !== undefined ? arCharMap[c] : c;
+  }
+
+  // Capitalize first letter
+  if (out.length > 0) {
+    out = out.charAt(0).toUpperCase() + out.slice(1);
+  }
+  return out;
+}
+
+/**
+ * Universal Bidirectional Character Name Resolver:
+ * - If isAr === true: GUARANTEED to return the authentic Arabic name.
+ * - If isAr === false: GUARANTEED to return the clean English name.
+ * Handles inputs with parentheses, pure Arabic, or pure English gracefully!
+ */
+export function getLocalizedCharacterName(rawName: string, isAr: boolean): string {
+  if (!rawName) return '';
+  const trimmed = rawName.trim();
+
+  // 1. If format has parenthesis: e.g. "خالد بن الوليد (Khalid ibn al-Walid)"
+  const parenMatch = trimmed.match(/^([^(]+)\(([^)]+)\)$/);
+  if (parenMatch) {
+    const part1 = parenMatch[1].trim();
+    const part2 = parenMatch[2].trim();
+    const part1IsAr = hasArabicCharacters(part1);
+    const part2IsAr = hasArabicCharacters(part2);
+
+    if (isAr) {
+      if (part1IsAr) return part1;
+      if (part2IsAr) return part2;
+      return convertNameToArabic(part1 || part2);
+    } else {
+      if (!part1IsAr && part1.length > 0) return part1;
+      if (!part2IsAr && part2.length > 0) return part2;
+      return convertArabicToEnglish(part1 || part2);
+    }
+  }
+
+  // 2. Pure input (no parens)
+  if (isAr) {
+    if (hasArabicCharacters(trimmed)) {
+      return trimmed;
+    }
+    return convertNameToArabic(trimmed);
+  } else {
+    if (!hasArabicCharacters(trimmed)) {
+      // Capitalize first letters of each word
+      return trimmed
+        .split(' ')
+        .map((w) => (w.length > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : ''))
+        .join(' ');
+    }
+    return convertArabicToEnglish(trimmed);
+  }
 }
 
 // Active references to prevent Chrome garbage-collection cutting off audio
@@ -345,11 +642,35 @@ let activeUtterance: SpeechSynthesisUtterance | null = null;
 let activeAudio: HTMLAudioElement | null = null;
 
 /**
- * Universal Sound & Speech Reader (100% free forever, no AI/API key required).
- * Reads the name using a robust 3-tier system:
- * 1. Free high-clarity TTS audio stream (native pronunciation)
- * 2. Web Speech Synthesis (with Arabic voice if installed, or system/English voice if not)
- * 3. Web Audio synthesizer chime fallback if browser speech is muted/blocked
+ * Cleans text specifically for authentic Arabic pronunciation
+ */
+export function cleanArabicTextForSpeech(input: string): string {
+  if (!input) return '';
+  let raw = input.trim();
+
+  // If input has parentheses e.g. "خالد بن الوليد (Khalid ibn al-Walid)"
+  const parenMatch = raw.match(/^([^(]+)\(([^)]+)\)$/);
+  if (parenMatch) {
+    const p1 = parenMatch[1].trim();
+    const p2 = parenMatch[2].trim();
+    if (hasArabicCharacters(p1)) raw = p1;
+    else if (hasArabicCharacters(p2)) raw = p2;
+    else raw = convertNameToArabic(p1 || p2);
+  } else if (!hasArabicCharacters(raw)) {
+    raw = convertNameToArabic(raw);
+  }
+
+  // Strip extraneous bracket notations or symbols
+  return raw
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/[^\u0600-\u06FF\s\.\-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Universal Arabic Sound & Speech Reader (100% clean voice, NO Super Mario jump chime!).
+ * Guarantees native Arabic voice reading on all devices (iOS, Android, Windows, Mac).
  */
 export function speakInArabic(text: string, onEnd?: () => void): boolean {
   return speakNameSound(text, onEnd);
@@ -392,144 +713,104 @@ export function speakNameSound(text: string, onEnd?: () => void): boolean {
     }
   };
 
-  // Determine Arabic and Latin/English text
-  const isArabic = hasArabicCharacters(raw);
-  const arabicText = isArabic ? raw : convertNameToArabic(raw);
-  const textToRead = arabicText || raw;
+  const cleanArabic = cleanArabicTextForSpeech(raw) || raw;
 
-  // Tier 1: Free Google Translate TTS stream via HTML5 Audio
+  // 1. Check if browser has a native Arabic SpeechSynthesis voice
+  if ('speechSynthesis' in window) {
+    try {
+      const voices = window.speechSynthesis.getVoices();
+      const arabicVoice = voices.find(
+        (v) =>
+          v.lang.toLowerCase().startsWith('ar') ||
+          v.name.toLowerCase().includes('arabic') ||
+          v.name.toLowerCase().includes('maged') ||
+          v.name.toLowerCase().includes('tarik') ||
+          v.name.toLowerCase().includes('laila') ||
+          v.name.toLowerCase().includes('salma') ||
+          v.name.toLowerCase().includes('zeina') ||
+          v.name.toLowerCase().includes('zahra') ||
+          v.name.toLowerCase().includes('youssef')
+      );
+
+      // If an actual Arabic voice is installed on OS, use SpeechSynthesis!
+      if (arabicVoice) {
+        const utterance = new SpeechSynthesisUtterance(cleanArabic);
+        activeUtterance = utterance;
+        utterance.voice = arabicVoice;
+        utterance.lang = arabicVoice.lang || 'ar-SA';
+        utterance.rate = 0.88; // Natural, clear Arabic cadence
+        utterance.pitch = 1.0;
+
+        utterance.onend = () => {
+          activeUtterance = null;
+          safeEnd();
+        };
+
+        utterance.onerror = () => {
+          activeUtterance = null;
+          playAudioFallback(cleanArabic, safeEnd);
+        };
+
+        setTimeout(() => {
+          if (activeUtterance === utterance) {
+            activeUtterance = null;
+            safeEnd();
+          }
+        }, 6000);
+
+        window.speechSynthesis.speak(utterance);
+        return true;
+      }
+    } catch {
+      // ignore, fall through to audio proxy
+    }
+  }
+
+  // 2. No native Arabic SpeechSynthesis voice installed -> Use server audio proxy or Google TTS
+  return playAudioFallback(cleanArabic, safeEnd);
+}
+
+function playAudioFallback(arabicText: string, onEnd: () => void): boolean {
   try {
-    const langParam = isArabic || arabicText ? 'ar' : 'en';
-    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${langParam}&q=${encodeURIComponent(textToRead)}`;
-    const audio = new Audio(ttsUrl);
+    // Primary: our origin API proxy route (avoids CORS and missing OS voice issues)
+    const proxyUrl = `/api/tts?lang=ar&text=${encodeURIComponent(arabicText)}`;
+    const audio = new Audio(proxyUrl);
     activeAudio = audio;
-
-    let hasStarted = false;
 
     audio.onended = () => {
       activeAudio = null;
-      safeEnd();
+      onEnd();
     };
 
     audio.onerror = () => {
-      activeAudio = null;
-      if (!hasStarted) {
-        fallbackToSpeechSynthesis(raw, arabicText, safeEnd);
-      }
+      // Direct Google TTS fallback if proxy fails
+      const directTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ar&q=${encodeURIComponent(arabicText)}`;
+      const directAudio = new Audio(directTtsUrl);
+      activeAudio = directAudio;
+      directAudio.onended = () => {
+        activeAudio = null;
+        onEnd();
+      };
+      directAudio.onerror = () => {
+        activeAudio = null;
+        onEnd();
+      };
+      directAudio.play().catch(() => {
+        activeAudio = null;
+        onEnd();
+      });
     };
 
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          hasStarted = true;
-        })
-        .catch(() => {
-          activeAudio = null;
-          fallbackToSpeechSynthesis(raw, arabicText, safeEnd);
-        });
+    const promise = audio.play();
+    if (promise !== undefined) {
+      promise.catch(() => {
+        activeAudio = null;
+        onEnd();
+      });
       return true;
     }
   } catch {
-    // fallback
+    onEnd();
   }
-
-  return fallbackToSpeechSynthesis(raw, arabicText, safeEnd);
-}
-
-function fallbackToSpeechSynthesis(
-  rawText: string,
-  arabicText: string,
-  onEnd?: () => void
-): boolean {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    playChimeTone();
-    onEnd?.();
-    return false;
-  }
-
-  try {
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.resume();
-
-    const voices = window.speechSynthesis.getVoices();
-    // Look for any Arabic voice
-    const arabicVoice = voices.find(
-      (v) =>
-        v.lang.toLowerCase().startsWith('ar') ||
-        v.name.toLowerCase().includes('arabic') ||
-        v.name.toLowerCase().includes('maged') ||
-        v.name.toLowerCase().includes('tarik')
-    );
-
-    // If no Arabic voice installed on the user's OS, use whatever voice is available!
-    const textToSpeak = arabicVoice ? (arabicText || rawText) : rawText;
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    activeUtterance = utterance;
-
-    if (arabicVoice) {
-      utterance.voice = arabicVoice;
-      utterance.lang = arabicVoice.lang || 'ar-SA';
-    } else {
-      // Fallback voice (English or default system voice)
-      const defaultVoice = voices.find((v) => v.default) || voices[0];
-      if (defaultVoice) {
-        utterance.voice = defaultVoice;
-        utterance.lang = defaultVoice.lang || 'en-US';
-      }
-    }
-
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-
-    utterance.onend = () => {
-      activeUtterance = null;
-      onEnd?.();
-    };
-
-    utterance.onerror = () => {
-      activeUtterance = null;
-      playChimeTone();
-      onEnd?.();
-    };
-
-    // Failsafe timeout in case browser never fires onend
-    setTimeout(() => {
-      if (activeUtterance === utterance) {
-        activeUtterance = null;
-        onEnd?.();
-      }
-    }, 6000);
-
-    window.speechSynthesis.speak(utterance);
-    return true;
-  } catch {
-    playChimeTone();
-    onEnd?.();
-    return false;
-  }
-}
-
-// Gentle acoustic chime fallback via Web Audio API (100% free forever, no network)
-function playChimeTone() {
-  try {
-    const AudioContextClass =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
-    gain.gain.setValueAtTime(0.12, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.35);
-  } catch {
-    // ignore
-  }
+  return false;
 }

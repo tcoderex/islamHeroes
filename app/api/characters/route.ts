@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
         picture: item.picture || '',
         rating: Math.max(-1000, Math.min(1000, Number(item.rating) || 0)),
         description: item.description,
+        imagePosition: item.imagePosition,
         updatedAt: Date.now(),
       }));
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Case 2: Single character addition
-    const { name, picture, rating, description } = body;
+    const { name, picture, rating, description, imagePosition } = body;
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
     }
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
       picture: typeof picture === 'string' ? picture.trim() : '',
       rating: Math.max(-1000, Math.min(1000, Number(rating) || 0)),
       description: typeof description === 'string' ? description.trim() : undefined,
+      imagePosition: typeof imagePosition === 'string' ? imagePosition.trim() : undefined,
       updatedAt: Date.now(),
     };
 
@@ -97,7 +99,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, picture, rating, description } = body;
+    const { id, name, picture, rating, description, imagePosition } = body;
 
     if (!id || typeof id !== 'string') {
       return NextResponse.json({ success: false, error: 'Character ID is required' }, { status: 400 });
@@ -116,6 +118,7 @@ export async function PUT(req: NextRequest) {
       picture: typeof picture === 'string' ? picture.trim() : current[index].picture,
       rating: rating !== undefined ? Math.max(-1000, Math.min(1000, Number(rating))) : current[index].rating,
       description: typeof description === 'string' ? description.trim() : current[index].description,
+      imagePosition: typeof imagePosition === 'string' ? imagePosition.trim() : current[index].imagePosition,
       updatedAt: Date.now(),
     };
 

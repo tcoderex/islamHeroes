@@ -17,17 +17,20 @@ import {
   Copy,
   Check,
   Volume2,
+  Move,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal from '@/components/AdminSettingsModal';
 import CharactersView, { CustomCharacter } from '@/components/CharactersView';
 import CharacterPreviewModal, { PreviewableCharacter } from '@/components/CharacterPreviewModal';
+import RepositionPictureModal from '@/components/RepositionPictureModal';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { DEFAULT_CHARACTERS } from '@/lib/defaultCharacters';
-import { speakInArabic } from '@/lib/arabicTransliteration';
+import { speakInArabic, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
+import { parseImagePosition } from '@/lib/imagePosition';
 
 export type SortOption = 'rating-desc' | 'rating-asc' | 'name-asc' | 'name-desc';
 
@@ -39,6 +42,7 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'search' | 'characters'>('search');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [previewCharacter, setPreviewCharacter] = useState<PreviewableCharacter | null>(null);
+  const [repositioningChar, setRepositioningChar] = useState<CustomCharacter | null>(null);
 
   // Search view state
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,16 +85,7 @@ export default function HomePage() {
   const dynamicSuggestions = useMemo(() => {
     if (!characters || characters.length === 0) return [];
     return characters
-      .map((c) => {
-        const fullName = c.name.trim();
-        if (isAr) {
-          const arPart = fullName.split('(')[0].trim();
-          return arPart || fullName;
-        } else {
-          const match = fullName.match(/\(([^)]+)\)/);
-          return match ? match[1].trim() : fullName;
-        }
-      })
+      .map((c) => getLocalizedCharacterName(c.name, isAr))
       .filter((val, idx, arr) => val.length > 0 && arr.indexOf(val) === idx)
       .slice(0, 6);
   }, [characters, isAr]);
@@ -411,17 +406,29 @@ export default function HomePage() {
     }
 
     try {
-      const jsonString = JSON.stringify(characters, null, 2);
+      // Formatted with both updated_at (Supabase Postgres) and updatedAt (client app)
+      const supabaseExport = characters.map((c) => ({
+        id: c.id,
+        name: c.name,
+        picture: c.picture || '',
+        rating: typeof c.rating === 'number' ? c.rating : 0,
+        description: c.description || '',
+        imagePosition: c.imagePosition,
+        updated_at: c.updatedAt || Date.now(),
+        updatedAt: c.updatedAt || Date.now(),
+      }));
+
+      const jsonString = JSON.stringify(supabaseExport, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `heroes-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      link.download = `heroes-supabase-backup-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      showToast(isAr ? 'تم تصدير النسخة الاحتياطية بنجاح' : 'Exported backup JSON file successfully');
+      showToast(isAr ? 'تم تصدير النسخة المتوافقة تماماً مع Supabase' : 'Exported Supabase-compatible JSON backup successfully');
     } catch {
       showToast(isAr ? 'فشل تصدير النسخة الاحتياطية' : 'Failed to export backup file');
     }
@@ -431,7 +438,7 @@ export default function HomePage() {
   const handlePreviewCustomCharacter = (char: CustomCharacter) => {
     setPreviewCharacter({
       id: char.id,
-      name: char.name,
+      name: getLocalizedCharacterName(char.name, isAr),
       picture: char.picture,
       rating: char.rating,
       summary: char.description || undefined,
@@ -444,7 +451,9 @@ export default function HomePage() {
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       list = list.filter((c) => {
-        const nameMatch = c.name.toLowerCase().includes(q);
+        const localizedName = getLocalizedCharacterName(c.name, isAr).toLowerCase();
+        const rawName = c.name.toLowerCase();
+        const nameMatch = localizedName.includes(q) || rawName.includes(q);
         const descMatch = c.description ? c.description.toLowerCase().includes(q) : false;
         return nameMatch || descMatch;
       });
@@ -452,8 +461,10 @@ export default function HomePage() {
     return list.sort((a, b) => {
       if (sortBy === 'rating-desc') return b.rating - a.rating;
       if (sortBy === 'rating-asc') return a.rating - b.rating;
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name, isAr ? 'ar' : 'en');
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name, isAr ? 'ar' : 'en');
+      const nameA = getLocalizedCharacterName(a.name, isAr);
+      const nameB = getLocalizedCharacterName(b.name, isAr);
+      if (sortBy === 'name-asc') return nameA.localeCompare(nameB, isAr ? 'ar' : 'en');
+      if (sortBy === 'name-desc') return nameB.localeCompare(nameA, isAr ? 'ar' : 'en');
       return 0;
     });
   }, [characters, searchQuery, sortBy, isAr]);
@@ -1038,7 +1049,8 @@ export default function HomePage() {
                             src={char.picture}
                             alt={char.name}
                             referrerPolicy="no-referrer"
-                            className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                            style={parseImagePosition(char.imagePosition || '50% 20%')}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
                         ) : (
                           <div
@@ -1048,7 +1060,7 @@ export default function HomePage() {
                                 : 'bg-gradient-to-br from-slate-100 to-sky-100 text-sky-500'
                             }`}
                           >
-                            <span>{char.name.charAt(0).toUpperCase()}</span>
+                            <span>{getLocalizedCharacterName(char.name, isAr).charAt(0).toUpperCase()}</span>
                           </div>
                         )}
 
@@ -1066,6 +1078,23 @@ export default function HomePage() {
                           size="md"
                           className="absolute top-3 sm:top-3.5 left-1/2 -translate-x-1/2 z-20"
                         />
+
+                        {/* Top-right: Admin Move / Reposition Button */}
+                        {isAdmin && (
+                          <div
+                            className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 flex items-center gap-1 z-20 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-white/20 text-white shadow-lg"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setRepositioningChar(char)}
+                              className="p-1 sm:p-1.5 rounded-lg text-amber-300 hover:text-amber-100 hover:bg-amber-500/30 transition-all cursor-pointer"
+                              title={isAr ? 'تحريك وضبط موضع الصورة' : 'Reposition picture'}
+                            >
+                              <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Card Content */}
@@ -1079,11 +1108,11 @@ export default function HomePage() {
                                   : 'text-slate-900 group-hover:text-[#0067c0]'
                               }`}
                             >
-                              {char.name}
+                              {getLocalizedCharacterName(char.name, isAr)}
                             </h3>
                             <button
                               type="button"
-                              onClick={(e) => handleReadCharacterName(e, char.name, char.id)}
+                              onClick={(e) => handleReadCharacterName(e, getLocalizedCharacterName(char.name, isAr), char.id)}
                               className={`p-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
                                 speakingCardId === char.id
                                   ? 'bg-emerald-500 text-white animate-pulse'
@@ -1271,6 +1300,21 @@ export default function HomePage() {
         character={previewCharacter}
         onClose={() => setPreviewCharacter(null)}
         isAr={isAr}
+      />
+
+      {/* Reposition Picture Modal */}
+      <RepositionPictureModal
+        character={repositioningChar}
+        isOpen={Boolean(repositioningChar)}
+        onClose={() => setRepositioningChar(null)}
+        onSavePosition={(id, pos) => {
+          const target = characters.find((c) => c.id === id);
+          if (target) {
+            handleUpdateCharacter({ ...target, imagePosition: pos });
+          }
+        }}
+        isAr={isAr}
+        theme={theme}
       />
     </div>
   );

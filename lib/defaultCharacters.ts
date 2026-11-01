@@ -5,6 +5,7 @@ export interface CharacterData {
   rating: number; // -1000 to 1000
   description?: string;
   updatedAt?: number;
+  imagePosition?: string; // CSS object-position, e.g. "50% 65%" or "center top"
 }
 
 export const DEFAULT_CHARACTERS: CharacterData[] = [

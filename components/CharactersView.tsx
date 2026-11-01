@@ -5,6 +5,7 @@ import {
   Plus,
   Trash2,
   Pencil,
+  Move,
   Upload,
   X,
   Check,
@@ -17,12 +18,15 @@ import {
   Sparkles,
   Volume2,
   Loader2,
+  Sliders,
 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme } from '@/lib/theme';
 import HonorBadge from './HonorBadge';
 import GlowingScoreBadge from './GlowingScoreBadge';
-import { convertNameToArabic, speakInArabic, hasArabicCharacters } from '@/lib/arabicTransliteration';
+import RepositionPictureModal from './RepositionPictureModal';
+import { convertNameToArabic, speakInArabic, hasArabicCharacters, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
+import { parseImagePosition } from '@/lib/imagePosition';
 
 export interface CustomCharacter {
   id: string;
@@ -31,6 +35,7 @@ export interface CustomCharacter {
   rating: number; // -1000 to 1000
   description?: string; // Optional small description
   updatedAt?: number;
+  imagePosition?: string; // CSS object-position, e.g. "50% 65%" or "center top"
 }
 
 interface CharactersViewProps {
@@ -77,6 +82,8 @@ export default function CharactersView({
   const [description, setDescription] = useState('');
   const [picture, setPicture] = useState('');
   const [rating, setRating] = useState<number>(850);
+  const [formImagePosition, setFormImagePosition] = useState<string>('50% 20%');
+  const [repositioningChar, setRepositioningChar] = useState<CustomCharacter | null>(null);
   const [imgErrorMap, setImgErrorMap] = useState<Record<string, boolean>>({});
   const [isUploading, setIsUploading] = useState(false);
   const [isSpeakingName, setIsSpeakingName] = useState<string | null>(null);
@@ -153,16 +160,7 @@ export default function CharactersView({
   const dynamicSuggestions = useMemo(() => {
     if (!characters || characters.length === 0) return [];
     return characters
-      .map((c) => {
-        const fullName = c.name.trim();
-        if (isAr) {
-          const arPart = fullName.split('(')[0].trim();
-          return arPart || fullName;
-        } else {
-          const match = fullName.match(/\(([^)]+)\)/);
-          return match ? match[1].trim() : fullName;
-        }
-      })
+      .map((c) => getLocalizedCharacterName(c.name, isAr))
       .filter((val, idx, arr) => val.length > 0 && arr.indexOf(val) === idx)
       .slice(0, 6);
   }, [characters, isAr]);
@@ -181,6 +179,7 @@ export default function CharactersView({
     setDescription('');
     setPicture('');
     setRating(850);
+    setFormImagePosition('50% 20%');
     setIsAdding(true);
     setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -194,6 +193,7 @@ export default function CharactersView({
     setDescription(char.description || '');
     setPicture(char.picture || '');
     setRating(char.rating);
+    setFormImagePosition(char.imagePosition || '50% 20%');
     setIsAdding(true);
     setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -207,7 +207,29 @@ export default function CharactersView({
     setDescription('');
     setPicture('');
     setRating(850);
+    setFormImagePosition('50% 20%');
     setIsAdding(false);
+  };
+
+  // Start repositioning image modal
+  const handleStartReposition = (char: CustomCharacter) => {
+    setRepositioningChar(char);
+  };
+
+  // Save new image position to character and database
+  const handleSaveReposition = (characterId: string, newPosition: string) => {
+    if (characterId === 'temp' || characterId === editingId) {
+      setFormImagePosition(newPosition);
+    }
+    const target = characters.find((c) => c.id === characterId);
+    if (!target) return;
+    const updated = { ...target, imagePosition: newPosition };
+    onUpdateCharacter?.(updated);
+    onShowToast?.(
+      isAr
+        ? `تم حفظ وتعديل موضع الصورة بنجاح: ${getLocalizedCharacterName(target.name, isAr)}`
+        : `Successfully saved new picture position for ${getLocalizedCharacterName(target.name, isAr)}`
+    );
   };
 
   // Handle local file upload and compress via canvas for optimal localStorage/Supabase storage
@@ -269,6 +291,7 @@ export default function CharactersView({
         description: description.trim() || undefined,
         picture: picture.trim(),
         rating: boundedRating,
+        imagePosition: formImagePosition || undefined,
       });
     } else {
       onAddCharacter({
@@ -276,6 +299,7 @@ export default function CharactersView({
         description: description.trim() || undefined,
         picture: picture.trim(),
         rating: boundedRating,
+        imagePosition: formImagePosition || undefined,
       });
     }
 
@@ -292,7 +316,9 @@ export default function CharactersView({
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       list = list.filter((c) => {
-        const nameMatch = c.name.toLowerCase().includes(q);
+        const localizedName = getLocalizedCharacterName(c.name, isAr).toLowerCase();
+        const rawName = c.name.toLowerCase();
+        const nameMatch = localizedName.includes(q) || rawName.includes(q);
         const descMatch = c.description ? c.description.toLowerCase().includes(q) : false;
         return nameMatch || descMatch;
       });
@@ -301,8 +327,10 @@ export default function CharactersView({
     return list.sort((a, b) => {
       if (sortBy === 'rating-desc') return b.rating - a.rating;
       if (sortBy === 'rating-asc') return a.rating - b.rating;
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name, isAr ? 'ar' : 'en');
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name, isAr ? 'ar' : 'en');
+      const nameA = getLocalizedCharacterName(a.name, isAr);
+      const nameB = getLocalizedCharacterName(b.name, isAr);
+      if (sortBy === 'name-asc') return nameA.localeCompare(nameB, isAr ? 'ar' : 'en');
+      if (sortBy === 'name-desc') return nameB.localeCompare(nameA, isAr ? 'ar' : 'en');
       return 0;
     });
   }, [characters, searchQuery, sortBy, isAr]);
@@ -785,20 +813,45 @@ export default function CharactersView({
               </div>
 
               {picture && (
-                <div className="mb-2 flex items-center gap-2.5 p-2 bg-slate-50 dark:bg-black/30 rounded-xl border border-slate-200/80 dark:border-white/10">
-                  <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-200 shrink-0 border border-slate-300">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={picture}
-                      alt="preview"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
-                    />
+                <div className="mb-2 p-2.5 bg-slate-50 dark:bg-black/30 rounded-xl border border-slate-200/80 dark:border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-12 h-14 rounded-lg overflow-hidden bg-slate-200 shrink-0 border border-slate-300 relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={picture}
+                        alt="preview"
+                        referrerPolicy="no-referrer"
+                        style={parseImagePosition(formImagePosition)}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" />
+                        {isAr ? 'تم تحديد الصورة' : 'Photo ready'}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono block">
+                        {isAr ? 'الموضع:' : 'Position:'} {formImagePosition}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" />
-                    {isAr ? 'تم تحديد الصورة' : 'Photo ready'}
-                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleStartReposition({
+                        id: editingId || 'temp',
+                        name: name || 'Preview Character',
+                        picture,
+                        rating,
+                        imagePosition: formImagePosition,
+                      })
+                    }
+                    className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Move className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'تحريك وضبط' : 'Reposition'}</span>
+                  </button>
                 </div>
               )}
 
@@ -995,7 +1048,7 @@ export default function CharactersView({
             return (
               <div
                 key={char.id}
-                onClick={() => onPreviewCharacter?.(char)}
+                onClick={() => onPreviewCharacter?.({ ...char, name: getLocalizedCharacterName(char.name, isAr) })}
                 className={`relative flex flex-col rounded-2xl md:rounded-3xl border overflow-hidden backdrop-blur-xl transition-all duration-300 group cursor-pointer active:scale-[0.99] hover:-translate-y-1.5 ${
                   isRamadan
                     ? 'bg-[#0f1e2c]/95 border-amber-500/25 shadow-[0_8px_30px_rgba(245,158,11,0.08)] hover:border-amber-400/60 hover:shadow-[0_16px_40px_rgba(245,158,11,0.2)]'
@@ -1011,7 +1064,8 @@ export default function CharactersView({
                       alt={char.name}
                       onError={() => handleImageError(char.id)}
                       referrerPolicy="no-referrer"
-                      className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                      style={parseImagePosition(char.imagePosition || '50% 20%')}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
                     <div
@@ -1021,7 +1075,7 @@ export default function CharactersView({
                           : 'bg-gradient-to-br from-slate-100 to-sky-100 text-sky-500'
                       }`}
                     >
-                      <span>{char.name.charAt(0).toUpperCase()}</span>
+                      <span>{getLocalizedCharacterName(char.name, isAr).charAt(0).toUpperCase()}</span>
                     </div>
                   )}
 
@@ -1040,28 +1094,38 @@ export default function CharactersView({
                     className="absolute top-3 sm:top-3.5 left-1/2 -translate-x-1/2 z-20"
                   />
 
-                  {/* 3. ON PICTURE TOP-RIGHT: Admin Actions (Edit & Delete) */}
-                  <div
-                    className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 flex items-center gap-1 z-20 bg-slate-950/75 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-white/20 text-white shadow-lg"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleStartEdit(char)}
-                      className="p-1 sm:p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
-                      title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
+                  {/* 3. ON PICTURE TOP-RIGHT: Admin Actions (Move/Reposition, Edit & Delete) */}
+                  {isAdmin && (
+                    <div
+                      className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 flex items-center gap-1 z-20 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-white/20 text-white shadow-lg"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteCharacter(char.id)}
-                      className="p-1 sm:p-1.5 rounded-lg text-rose-300 hover:text-rose-100 hover:bg-rose-500/30 transition-all cursor-pointer"
-                      title={isAr ? 'حذف الشخصية' : 'Delete'}
-                    >
-                      <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => handleStartReposition(char)}
+                        className="p-1 sm:p-1.5 rounded-lg text-amber-300 hover:text-amber-100 hover:bg-amber-500/30 transition-all cursor-pointer"
+                        title={isAr ? 'تحريك وضبط موضع الصورة' : 'Reposition picture'}
+                      >
+                        <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(char)}
+                        className="p-1 sm:p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
+                        title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
+                      >
+                        <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteCharacter(char.id)}
+                        className="p-1 sm:p-1.5 rounded-lg text-rose-300 hover:text-rose-100 hover:bg-rose-500/30 transition-all cursor-pointer"
+                        title={isAr ? 'حذف الشخصية' : 'Delete'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Character Details: Name, Description, and Tier */}
@@ -1075,13 +1139,13 @@ export default function CharactersView({
                             : 'text-slate-900 group-hover:text-[#0067c0]'
                         }`}
                       >
-                        {char.name}
+                        {getLocalizedCharacterName(char.name, isAr)}
                       </h3>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleReadName(char.name, char.id);
+                          handleReadName(getLocalizedCharacterName(char.name, isAr), char.id);
                         }}
                         className={`p-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
                           isSpeakingName === char.id
@@ -1205,6 +1269,16 @@ export default function CharactersView({
           </div>
         </div>
       )}
+
+      {/* Reposition Picture Modal */}
+      <RepositionPictureModal
+        character={repositioningChar}
+        isOpen={Boolean(repositioningChar)}
+        onClose={() => setRepositioningChar(null)}
+        onSavePosition={handleSaveReposition}
+        isAr={isAr}
+        theme={theme}
+      />
     </div>
   );
 }

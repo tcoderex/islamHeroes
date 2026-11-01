@@ -5,7 +5,8 @@ import { X, Clock, Volume2 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
-import { speakInArabic } from '@/lib/arabicTransliteration';
+import { speakInArabic, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
+import { parseImagePosition } from '@/lib/imagePosition';
 
 export interface PreviewableCharacter {
   id: string;
@@ -16,6 +17,7 @@ export interface PreviewableCharacter {
   summary?: string;
   picture?: string;
   rating?: number; // -1000 to 1000
+  imagePosition?: string;
 }
 
 interface CharacterPreviewModalProps {
@@ -34,6 +36,7 @@ export default function CharacterPreviewModal({
 
   if (!character) return null;
 
+  const displayName = getLocalizedCharacterName(character.name, isAr);
   const rating = character.rating ?? 1000;
   const tier = getRatingTier(rating);
 
@@ -102,14 +105,15 @@ export default function CharacterPreviewModal({
                 alt={character.name}
                 onError={() => setImgError(true)}
                 referrerPolicy="no-referrer"
-                className="relative z-10 max-h-full max-w-full w-auto h-auto object-contain rounded-lg drop-shadow-md"
+                style={parseImagePosition(character.imagePosition || '50% 20%')}
+                className="relative z-10 w-full h-full object-cover rounded-lg drop-shadow-md"
               />
             </>
           ) : (
             <div className="flex flex-col items-center justify-center text-white py-8">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0067c0] to-sky-400 flex items-center justify-center shadow-md mb-2">
                 <span className="text-3xl font-bold font-serif text-white select-none">
-                  {character.name.charAt(0)}
+                  {displayName.charAt(0)}
                 </span>
               </div>
               <span className="text-xs text-slate-400">
@@ -127,13 +131,13 @@ export default function CharacterPreviewModal({
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-snug">
-                    {character.name}
+                    {displayName}
                   </h2>
                   <button
                     type="button"
                     onClick={() => {
                       setIsSpeaking(true);
-                      speakInArabic(character.name, () => setIsSpeaking(false));
+                      speakInArabic(displayName, () => setIsSpeaking(false));
                     }}
                     className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
                       isSpeaking

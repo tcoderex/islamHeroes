@@ -55,7 +55,7 @@ export function getRatingTier(rating: number = 0): RatingTierInfo {
       bgLight: 'bg-sky-100 dark:bg-sky-900/50',
       borderColor: 'border-sky-300 dark:border-sky-500',
       barColor: 'bg-sky-500',
-      badgeGradient: 'bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold shadow-xs',
+      badgeGradient: 'bg-gradient-to-r from-sky-500 to-blue-600 !text-white font-bold shadow-xs',
       glowColor: 'shadow-[0_0_15px_rgba(56,189,248,0.45)]',
     };
   }
@@ -71,7 +71,7 @@ export function getRatingTier(rating: number = 0): RatingTierInfo {
       bgLight: 'bg-emerald-100 dark:bg-emerald-900/50',
       borderColor: 'border-emerald-300 dark:border-emerald-500',
       barColor: 'bg-emerald-500',
-      badgeGradient: 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold shadow-xs',
+      badgeGradient: 'bg-gradient-to-r from-emerald-500 to-teal-600 !text-white font-bold shadow-xs',
       glowColor: 'shadow-[0_0_15px_rgba(16,185,129,0.35)]',
     };
   }
@@ -87,7 +87,7 @@ export function getRatingTier(rating: number = 0): RatingTierInfo {
       bgLight: 'bg-teal-100 dark:bg-teal-900/50',
       borderColor: 'border-teal-300 dark:border-teal-500',
       barColor: 'bg-teal-500',
-      badgeGradient: 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-bold shadow-xs',
+      badgeGradient: 'bg-gradient-to-r from-teal-500 to-cyan-600 !text-white font-bold shadow-xs',
       glowColor: 'shadow-[0_0_15px_rgba(20,184,166,0.35)]',
     };
   }
@@ -103,7 +103,7 @@ export function getRatingTier(rating: number = 0): RatingTierInfo {
       bgLight: 'bg-blue-100 dark:bg-blue-900/50',
       borderColor: 'border-blue-300 dark:border-blue-500',
       barColor: 'bg-blue-500',
-      badgeGradient: 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold shadow-xs',
+      badgeGradient: 'bg-gradient-to-r from-blue-500 to-indigo-600 !text-white font-bold shadow-xs',
       glowColor: 'shadow-[0_0_15px_rgba(59,130,246,0.3)]',
     };
   }
@@ -119,7 +119,7 @@ export function getRatingTier(rating: number = 0): RatingTierInfo {
       bgLight: 'bg-amber-100 dark:bg-amber-900/50',
       borderColor: 'border-amber-400 dark:border-amber-500',
       barColor: 'bg-amber-500',
-      badgeGradient: 'bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 text-white font-bold shadow-xs',
+      badgeGradient: 'bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 !text-white font-bold shadow-xs',
       glowColor: 'shadow-[0_0_15px_rgba(245,158,11,0.3)]',
     };
   }
@@ -135,7 +135,7 @@ export function getRatingTier(rating: number = 0): RatingTierInfo {
       bgLight: 'bg-slate-200 dark:bg-slate-800',
       borderColor: 'border-slate-400 dark:border-slate-600',
       barColor: 'bg-slate-500',
-      badgeGradient: 'bg-gradient-to-r from-slate-600 to-zinc-700 text-white font-bold shadow-xs',
+      badgeGradient: 'bg-gradient-to-r from-slate-600 to-zinc-700 !text-white font-bold shadow-xs',
       glowColor: 'shadow-[0_0_15px_rgba(100,116,139,0.3)]',
     };
   }
@@ -151,7 +151,7 @@ export function getRatingTier(rating: number = 0): RatingTierInfo {
       bgLight: 'bg-orange-100 dark:bg-orange-900/50',
       borderColor: 'border-orange-400 dark:border-orange-500',
       barColor: 'bg-orange-500',
-      badgeGradient: 'bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold shadow-xs',
+      badgeGradient: 'bg-gradient-to-r from-orange-500 to-amber-600 !text-white font-bold shadow-xs',
       glowColor: 'shadow-[0_0_15px_rgba(249,115,22,0.35)]',
     };
   }
@@ -167,7 +167,7 @@ export function getRatingTier(rating: number = 0): RatingTierInfo {
       bgLight: 'bg-rose-100 dark:bg-rose-900/50',
       borderColor: 'border-rose-400 dark:border-rose-500',
       barColor: 'bg-rose-500',
-      badgeGradient: 'bg-gradient-to-r from-rose-600 to-red-700 text-white font-bold shadow-xs',
+      badgeGradient: 'bg-gradient-to-r from-rose-600 to-red-700 !text-white font-bold shadow-xs',
       glowColor: 'shadow-[0_0_15px_rgba(244,63,94,0.35)]',
     };
   }
@@ -182,7 +182,7 @@ export function getRatingTier(rating: number = 0): RatingTierInfo {
     bgLight: 'bg-purple-100 dark:bg-purple-900/50',
     borderColor: 'border-purple-400 dark:border-purple-500',
     barColor: 'bg-purple-600',
-    badgeGradient: 'bg-gradient-to-r from-purple-700 via-indigo-900 to-purple-900 text-white font-bold shadow-xs',
+    badgeGradient: 'bg-gradient-to-r from-purple-700 via-indigo-900 to-purple-900 !text-white font-bold shadow-xs',
     glowColor: 'shadow-[0_0_20px_rgba(147,51,234,0.45)]',
   };
 }

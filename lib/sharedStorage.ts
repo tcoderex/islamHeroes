@@ -54,26 +54,44 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
 
       if (!error && Array.isArray(data)) {
         if (data.length > 0) {
-          const mapped: SharedCharacter[] = data.map((row) => ({
-            id: String(row.id),
-            name: String(row.name || ''),
-            picture: String(row.picture || ''),
-            rating: Number(row.rating) || 0,
-            description: row.description ? String(row.description) : undefined,
-            updatedAt: row.updated_at ? Number(row.updated_at) : Date.now(),
-          }));
+          const mapped: SharedCharacter[] = data.map((row) => {
+            let desc = row.description ? String(row.description) : undefined;
+            let imgPos: string | undefined = row.image_position ? String(row.image_position) : undefined;
+            if (desc) {
+              const posMatch = desc.match(/\[\[pos:([^\]]+)\]\]/);
+              if (posMatch) {
+                imgPos = posMatch[1].trim();
+                desc = desc.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').trim() || undefined;
+              }
+            }
+            return {
+              id: String(row.id),
+              name: String(row.name || ''),
+              picture: String(row.picture || ''),
+              rating: Number(row.rating) || 0,
+              description: desc,
+              imagePosition: imgPos,
+              updatedAt: row.updated_at ? Number(row.updated_at) : Date.now(),
+            };
+          });
           memoryCache = mapped;
           return mapped;
         } else {
           // Auto-seed Supabase characters table with seed data
-          const payload = seed.map((c) => ({
-            id: c.id,
-            name: c.name,
-            picture: c.picture || '',
-            rating: c.rating,
-            description: c.description || null,
-            updated_at: c.updatedAt || Date.now(),
-          }));
+          const payload = seed.map((c) => {
+            let desc = c.description ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').trim() : '';
+            if (c.imagePosition) {
+              desc = desc ? `${desc} [[pos:${c.imagePosition}]]` : `[[pos:${c.imagePosition}]]`;
+            }
+            return {
+              id: c.id,
+              name: c.name,
+              picture: c.picture || '',
+              rating: c.rating,
+              description: desc || null,
+              updated_at: c.updatedAt || Date.now(),
+            };
+          });
           await supabase.from('characters').upsert(payload, { onConflict: 'id' });
           memoryCache = seed;
           return seed;
@@ -138,14 +156,20 @@ export async function saveSharedCharacters(characters: SharedCharacter[]): Promi
   const supabase = getSupabase();
   if (supabase) {
     try {
-      const payload = characters.map((c) => ({
-        id: c.id,
-        name: c.name,
-        picture: c.picture || '',
-        rating: c.rating,
-        description: c.description || null,
-        updated_at: c.updatedAt || Date.now(),
-      }));
+      const payload = characters.map((c) => {
+        let desc = c.description ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').trim() : '';
+        if (c.imagePosition) {
+          desc = desc ? `${desc} [[pos:${c.imagePosition}]]` : `[[pos:${c.imagePosition}]]`;
+        }
+        return {
+          id: c.id,
+          name: c.name,
+          picture: c.picture || '',
+          rating: c.rating,
+          description: desc || null,
+          updated_at: c.updatedAt || Date.now(),
+        };
+      });
 
       const { error } = await supabase.from('characters').upsert(payload, { onConflict: 'id' });
       if (!error) {
