@@ -25,7 +25,7 @@ import { AppTheme } from '@/lib/theme';
 import HonorBadge from './HonorBadge';
 import GlowingScoreBadge from './GlowingScoreBadge';
 import RepositionPictureModal from './RepositionPictureModal';
-import { convertNameToArabic, speakInArabic, hasArabicCharacters, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
+import { convertNameToArabic, speakInArabic, stopArabicSpeech, hasArabicCharacters, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
 
 export interface CustomCharacter {
@@ -107,6 +107,11 @@ export default function CharactersView({
 
   const handleReadName = (targetName: string, idKey: string = 'form-name') => {
     if (!targetName.trim()) return;
+    if (isSpeakingName === idKey) {
+      stopArabicSpeech();
+      setIsSpeakingName(null);
+      return;
+    }
     setIsSpeakingName(idKey);
     const ok = speakInArabic(targetName, () => {
       setIsSpeakingName(null);

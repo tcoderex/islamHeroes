@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Clock, Volume2 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
-import { speakInArabic, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
+import { speakInArabic, stopArabicSpeech, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
 
 export interface PreviewableCharacter {
@@ -34,6 +34,18 @@ export default function CharacterPreviewModal({
   const [imgError, setImgError] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      stopArabicSpeech();
+    };
+  }, []);
+
+  const handleClose = () => {
+    stopArabicSpeech();
+    setIsSpeaking(false);
+    onClose();
+  };
+
   if (!character) return null;
 
   const displayName = getLocalizedCharacterName(character.name, isAr);
@@ -53,7 +65,7 @@ export default function CharacterPreviewModal({
     <div
       dir={isAr ? 'rtl' : 'ltr'}
       className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="relative w-full max-w-sm sm:max-w-md md:max-w-2xl lg:max-w-3xl bg-white/95 backdrop-blur-2xl border border-slate-200/90 rounded-2xl shadow-[0_24px_60px_rgba(0,103,192,0.18)] overflow-hidden my-auto max-h-[92vh] flex flex-col md:flex-row"
@@ -62,7 +74,7 @@ export default function CharacterPreviewModal({
         {/* Close Button */}
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           className={`absolute top-3 z-30 p-2 rounded-full bg-slate-900/60 hover:bg-slate-900/80 text-white transition-colors cursor-pointer shadow-md ${
             isAr ? 'left-3' : 'right-3'
           }`}
@@ -136,6 +148,11 @@ export default function CharacterPreviewModal({
                   <button
                     type="button"
                     onClick={() => {
+                      if (isSpeaking) {
+                        stopArabicSpeech();
+                        setIsSpeaking(false);
+                        return;
+                      }
                       setIsSpeaking(true);
                       speakInArabic(displayName, () => setIsSpeaking(false));
                     }}

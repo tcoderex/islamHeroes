@@ -32,6 +32,8 @@ export async function GET(req: NextRequest) {
       return new NextResponse(arrayBuffer, {
         headers: {
           'Content-Type': 'audio/mpeg',
+          'Content-Length': String(arrayBuffer.byteLength),
+          'Accept-Ranges': 'bytes',
           'Cache-Control': 'public, max-age=86400, s-maxage=86400',
         },
       });

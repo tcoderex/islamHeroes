@@ -29,7 +29,7 @@ import GlowingScoreBadge from '@/components/GlowingScoreBadge';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { DEFAULT_CHARACTERS } from '@/lib/defaultCharacters';
-import { speakInArabic, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
+import { speakInArabic, stopArabicSpeech, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
 
 export type SortOption = 'rating-desc' | 'rating-asc' | 'name-asc' | 'name-desc';
@@ -77,6 +77,11 @@ export default function HomePage() {
 
   const handleReadCharacterName = (e: React.MouseEvent, charName: string, id: string) => {
     e.stopPropagation();
+    if (speakingCardId === id) {
+      stopArabicSpeech();
+      setSpeakingCardId(null);
+      return;
+    }
     setSpeakingCardId(id);
     speakInArabic(charName, () => setSpeakingCardId(null));
   };

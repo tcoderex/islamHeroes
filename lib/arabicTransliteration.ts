@@ -668,16 +668,69 @@ export function cleanArabicTextForSpeech(input: string): string {
     .trim();
 }
 
+// Global audio references to guarantee audio never stays stuck
+let currentAudio: HTMLAudioElement | null = null;
+let currentSafetyTimer: ReturnType<typeof setTimeout> | null = null;
+let currentPendingCallback: (() => void) | null = null;
+
 /**
- * Universal Arabic Sound & Speech Reader (100% clean voice, NO Super Mario jump chime!).
- * Guarantees native Arabic voice reading on all devices (iOS, Android, Windows, Mac).
+ * Immediately stops any currently playing Arabic vocal and clears active UI states
+ */
+export function stopArabicSpeech(): void {
+  if (currentSafetyTimer) {
+    clearTimeout(currentSafetyTimer);
+    currentSafetyTimer = null;
+  }
+
+  // Clear browser SpeechSynthesis if any was queued
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      // ignore
+    }
+  }
+
+  // Stop current HTML5 audio instance cleanly
+  if (currentAudio) {
+    try {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio.onended = null;
+      currentAudio.onerror = null;
+      currentAudio.ontimeupdate = null;
+      currentAudio.src = '';
+    } catch {
+      // ignore
+    }
+    currentAudio = null;
+  }
+
+  // Notify any pending callback so previous button exits pulsing state immediately
+  if (currentPendingCallback) {
+    const cb = currentPendingCallback;
+    currentPendingCallback = null;
+    try {
+      cb();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/**
+ * Universal Arabic Sound & Speech Reader.
+ * Guaranteed to never get stuck on any character, with automatic previous-card cleanup and safety timers.
  */
 export function speakInArabic(text: string, onEnd?: () => void): boolean {
   return speakNameSound(text, onEnd);
 }
 
 export function speakNameSound(text: string, onEnd?: () => void): boolean {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === 'undefined') {
+    onEnd?.();
+    return false;
+  }
 
   const raw = text.trim();
   if (!raw) {
@@ -685,132 +738,134 @@ export function speakNameSound(text: string, onEnd?: () => void): boolean {
     return false;
   }
 
-  // Stop previous audio playback
-  if (activeAudio) {
-    try {
-      activeAudio.pause();
-      activeAudio.currentTime = 0;
-    } catch {
-      // ignore
-    }
-    activeAudio = null;
+  // 1. Cleanly stop any existing vocal and reset the previous button's speaking state
+  stopArabicSpeech();
+
+  const cleanArabic = cleanArabicTextForSpeech(raw) || raw;
+  if (!cleanArabic.trim()) {
+    onEnd?.();
+    return false;
   }
 
-  if ('speechSynthesis' in window) {
-    try {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.resume();
-    } catch {
-      // ignore
-    }
-  }
+  currentPendingCallback = onEnd || null;
 
-  let ended = false;
-  const safeEnd = () => {
-    if (!ended) {
-      ended = true;
-      onEnd?.();
+  let isFinished = false;
+  const finish = () => {
+    if (isFinished) return;
+    isFinished = true;
+
+    if (currentSafetyTimer) {
+      clearTimeout(currentSafetyTimer);
+      currentSafetyTimer = null;
+    }
+
+    if (currentAudio) {
+      try {
+        currentAudio.onended = null;
+        currentAudio.onerror = null;
+        currentAudio.ontimeupdate = null;
+      } catch {
+        // ignore
+      }
+      currentAudio = null;
+    }
+
+    if (currentPendingCallback) {
+      const cb = currentPendingCallback;
+      currentPendingCallback = null;
+      try {
+        cb();
+      } catch {
+        // ignore
+      }
     }
   };
 
-  const cleanArabic = cleanArabicTextForSpeech(raw) || raw;
+  // 2. Safety timeout: names are at most 1-3 seconds. Never allow UI to stay stuck longer than 4.5 seconds
+  const maxWait = Math.min(4500, Math.max(2500, cleanArabic.length * 140));
+  currentSafetyTimer = setTimeout(() => {
+    finish();
+  }, maxWait);
 
-  // 1. Check if browser has a native Arabic SpeechSynthesis voice
-  if ('speechSynthesis' in window) {
-    try {
-      const voices = window.speechSynthesis.getVoices();
-      const arabicVoice = voices.find(
-        (v) =>
-          v.lang.toLowerCase().startsWith('ar') ||
-          v.name.toLowerCase().includes('arabic') ||
-          v.name.toLowerCase().includes('maged') ||
-          v.name.toLowerCase().includes('tarik') ||
-          v.name.toLowerCase().includes('laila') ||
-          v.name.toLowerCase().includes('salma') ||
-          v.name.toLowerCase().includes('zeina') ||
-          v.name.toLowerCase().includes('zahra') ||
-          v.name.toLowerCase().includes('youssef')
-      );
-
-      // If an actual Arabic voice is installed on OS, use SpeechSynthesis!
-      if (arabicVoice) {
-        const utterance = new SpeechSynthesisUtterance(cleanArabic);
-        activeUtterance = utterance;
-        utterance.voice = arabicVoice;
-        utterance.lang = arabicVoice.lang || 'ar-SA';
-        utterance.rate = 0.88; // Natural, clear Arabic cadence
-        utterance.pitch = 1.0;
-
-        utterance.onend = () => {
-          activeUtterance = null;
-          safeEnd();
-        };
-
-        utterance.onerror = () => {
-          activeUtterance = null;
-          playAudioFallback(cleanArabic, safeEnd);
-        };
-
-        setTimeout(() => {
-          if (activeUtterance === utterance) {
-            activeUtterance = null;
-            safeEnd();
-          }
-        }, 6000);
-
-        window.speechSynthesis.speak(utterance);
-        return true;
-      }
-    } catch {
-      // ignore, fall through to audio proxy
-    }
-  }
-
-  // 2. No native Arabic SpeechSynthesis voice installed -> Use server audio proxy or Google TTS
-  return playAudioFallback(cleanArabic, safeEnd);
-}
-
-function playAudioFallback(arabicText: string, onEnd: () => void): boolean {
+  // 3. Primary: High-fidelity native Arabic audio from origin proxy (/api/tts)
   try {
-    // Primary: our origin API proxy route (avoids CORS and missing OS voice issues)
-    const proxyUrl = `/api/tts?lang=ar&text=${encodeURIComponent(arabicText)}`;
+    const proxyUrl = `/api/tts?lang=ar&text=${encodeURIComponent(cleanArabic)}`;
     const audio = new Audio(proxyUrl);
-    activeAudio = audio;
+    currentAudio = audio;
 
     audio.onended = () => {
-      activeAudio = null;
-      onEnd();
+      finish();
+    };
+
+    audio.ontimeupdate = () => {
+      // If audio reached near the end, finish safely
+      if (audio.duration && audio.currentTime >= audio.duration - 0.08) {
+        finish();
+      }
     };
 
     audio.onerror = () => {
-      // Direct Google TTS fallback if proxy fails
-      const directTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ar&q=${encodeURIComponent(arabicText)}`;
-      const directAudio = new Audio(directTtsUrl);
-      activeAudio = directAudio;
-      directAudio.onended = () => {
-        activeAudio = null;
-        onEnd();
-      };
-      directAudio.onerror = () => {
-        activeAudio = null;
-        onEnd();
-      };
-      directAudio.play().catch(() => {
-        activeAudio = null;
-        onEnd();
-      });
+      // Fallback: Direct Google Translate TTS link
+      try {
+        const directUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ar&q=${encodeURIComponent(cleanArabic)}`;
+        const fallbackAudio = new Audio(directUrl);
+        currentAudio = fallbackAudio;
+
+        fallbackAudio.onended = () => finish();
+        fallbackAudio.onerror = () => {
+          fallbackToSpeechSynthesis(cleanArabic, finish);
+        };
+
+        fallbackAudio.play().catch(() => {
+          fallbackToSpeechSynthesis(cleanArabic, finish);
+        });
+      } catch {
+        fallbackToSpeechSynthesis(cleanArabic, finish);
+      }
     };
 
-    const promise = audio.play();
-    if (promise !== undefined) {
-      promise.catch(() => {
-        activeAudio = null;
-        onEnd();
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // Autoplay policy or device restriction -> fallback to SpeechSynthesis
+        fallbackToSpeechSynthesis(cleanArabic, finish);
       });
       return true;
     }
   } catch {
-    onEnd();
+    return fallbackToSpeechSynthesis(cleanArabic, finish);
   }
-  return false;
+
+  return true;
+}
+
+function fallbackToSpeechSynthesis(arabicText: string, onFinish: () => void): boolean {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    onFinish();
+    return false;
+  }
+
+  try {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+
+    const utterance = new SpeechSynthesisUtterance(arabicText);
+    utterance.lang = 'ar-SA';
+    utterance.rate = 0.88;
+
+    const voices = window.speechSynthesis.getVoices();
+    const arVoice = voices.find((v) => v.lang.toLowerCase().startsWith('ar'));
+    if (arVoice) {
+      utterance.voice = arVoice;
+    }
+
+    utterance.onend = () => onFinish();
+    utterance.onerror = () => onFinish();
+
+    window.speechSynthesis.speak(utterance);
+    return true;
+  } catch {
+    onFinish();
+    return false;
+  }
 }
