@@ -34,6 +34,7 @@ import { AppTheme, THEMES } from '@/lib/theme';
 import { DEFAULT_CHARACTERS } from '@/lib/defaultCharacters';
 import { speakInArabic, stopArabicSpeech, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
+import GoogleAuthButton from '@/components/GoogleAuthButton';
 
 export type SortOption = 'rating-desc' | 'rating-asc' | 'name-asc' | 'name-desc';
 
@@ -645,8 +646,10 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Right side: Language Toggle */}
+          {/* Right side: Google Profile / Login & Language Toggle */}
           <div className="flex items-center gap-2">
+            <GoogleAuthButton isAr={isAr} theme={theme} size="sm" compactHeader />
+
             <div
               className={`flex items-center p-0.5 rounded-xl border shadow-2xs ${
                 isRamadan

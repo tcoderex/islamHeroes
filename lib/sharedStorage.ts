@@ -53,7 +53,9 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
         .order('rating', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        const validRows = data.filter((row) => row.id !== '__comments_store__');
+        const validRows = data.filter(
+          (row) => row.id !== '__comments_store__' && row.id !== '__banned_users_store__'
+        );
         if (validRows.length > 0) {
           const mapped: SharedCharacter[] = validRows.map((row) => {
             let desc = row.description ? String(row.description) : undefined;

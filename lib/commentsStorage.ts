@@ -6,6 +6,7 @@ export interface CharacterComment {
   id: string;
   characterId: string;
   userName: string;
+  userEmail?: string; // Google Email
   text: string;
   guestId?: string; // Persistent browser guest identifier
   suggestedRating?: number; // -1000 to 1000
@@ -73,6 +74,7 @@ export async function getComments(characterId?: string): Promise<CharacterCommen
           id: String(row.id),
           characterId: String(row.character_id),
           userName: String(row.user_name || 'Guest'),
+          userEmail: row.user_email ? String(row.user_email) : row.userEmail ? String(row.userEmail) : undefined,
           text: String(row.text || ''),
           guestId: row.guest_id ? String(row.guest_id) : row.guestId ? String(row.guestId) : undefined,
           suggestedRating:
@@ -148,6 +150,7 @@ export async function addComment(
     id: `cmt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     characterId: commentData.characterId,
     userName: commentData.userName.trim() || 'Guest',
+    userEmail: commentData.userEmail ? commentData.userEmail.trim().toLowerCase() : undefined,
     text: commentData.text.trim(),
     guestId: commentData.guestId ? commentData.guestId.trim() : undefined,
     suggestedRating:

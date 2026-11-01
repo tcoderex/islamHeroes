@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getComments, addComment, deleteComment, deleteCommentsByGuest } from '@/lib/commentsStorage';
+import { isUserBanned } from '@/lib/bannedUsersStorage';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { characterId, userName, text, guestId, suggestedRating } = body;
+    const { characterId, userName, userEmail, text, guestId, suggestedRating } = body;
 
     if (!characterId || typeof characterId !== 'string') {
       return NextResponse.json({ success: false, error: 'Character ID is required' }, { status: 400 });
@@ -66,11 +67,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Comment text is required' }, { status: 400 });
     }
 
+    // Check if user account or guest ID is banned
+    const emailToTest = typeof userEmail === 'string' ? userEmail.trim().toLowerCase() : undefined;
+    const guestToTest = typeof guestId === 'string' ? guestId.trim() : undefined;
+
+    const banned = await isUserBanned(emailToTest, guestToTest);
+    if (banned) {
+      return NextResponse.json(
+        { success: false, error: 'حسابك محظور من إضافة التعليقات. تواصل مع الإدارة' },
+        { status: 403 }
+      );
+    }
+
     const newComment = await addComment({
       characterId,
       userName: typeof userName === 'string' && userName.trim() ? userName.trim() : 'Guest',
+      userEmail: emailToTest,
       text: text.trim(),
-      guestId: typeof guestId === 'string' && guestId.trim() ? guestId.trim() : undefined,
+      guestId: guestToTest,
       suggestedRating: suggestedRating !== undefined && suggestedRating !== null ? Number(suggestedRating) : undefined,
     });
 

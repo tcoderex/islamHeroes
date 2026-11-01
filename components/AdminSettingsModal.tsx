@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   X,
   Settings,
@@ -22,6 +22,12 @@ import {
   ExternalLink,
   CheckCircle2,
   AlertCircle,
+  ShieldAlert,
+  UserX,
+  UserCheck,
+  Search,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { AZHAR_SCHOLARS_TEMPLATE } from '@/lib/azhar-scholars-template';
@@ -54,14 +60,99 @@ export default function AdminSettingsModal({
   onShowToast,
   isAr,
 }: AdminSettingsModalProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'theme' | 'template' | 'backup' | 'supabase'>('theme');
+  const [activeSubTab, setActiveSubTab] = useState<'theme' | 'template' | 'backup' | 'supabase' | 'banned'>('theme');
   const [showConfirmReplace, setShowConfirmReplace] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [copiedInserts, setCopiedInserts] = useState(false);
   const [exportCharactersChecked, setExportCharactersChecked] = useState(true);
   const [exportCommentsChecked, setExportCommentsChecked] = useState(true);
+
+  // Banned Users Management State
+  const [bannedList, setBannedList] = useState<any[]>([]);
+  const [isLoadingBanned, setIsLoadingBanned] = useState(false);
+  const [banEmailInput, setBanEmailInput] = useState('');
+  const [banNameInput, setBanNameInput] = useState('');
+  const [banReasonInput, setBanReasonInput] = useState('');
+  const [isBanningUser, setIsBanningUser] = useState(false);
+  const [bannedSearchQuery, setBannedSearchQuery] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const fetchBannedUsers = async () => {
+    setIsLoadingBanned(true);
+    try {
+      const res = await fetch('/api/banned-users');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.bannedUsers)) {
+        setBannedList(data.bannedUsers);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingBanned(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchBannedUsers();
+    }
+  }, [isOpen]);
+
+  const handleBanUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!banEmailInput.trim()) return;
+
+    setIsBanningUser(true);
+    try {
+      const res = await fetch('/api/banned-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: banEmailInput.trim(),
+          userName: banNameInput.trim() || undefined,
+          reason: banReasonInput.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        onShowToast(
+          isAr
+            ? `تم حظر البريد "${banEmailInput.trim()}" وتطهير كافة تعليقاته بنجاح`
+            : `Banned user "${banEmailInput.trim()}" and purged comments successfully`
+        );
+        setBanEmailInput('');
+        setBanNameInput('');
+        setBanReasonInput('');
+        fetchBannedUsers();
+      } else {
+        onShowToast(data.error || (isAr ? 'فشل حظر المستخدم' : 'Failed to ban user'));
+      }
+    } catch {
+      onShowToast(isAr ? 'خطأ في حظر المستخدم' : 'Error banning user');
+    } finally {
+      setIsBanningUser(false);
+    }
+  };
+
+  const handleUnbanUser = async (email: string) => {
+    if (!confirm(isAr ? `إلغاء حظر البريد "${email}" والسماح له بالتعليق مجدداً؟` : `Unban user "${email}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/banned-users?email=${encodeURIComponent(email)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBannedList((prev) => prev.filter((b) => b.email !== email));
+        onShowToast(isAr ? `تم إلغاء حظر البريد "${email}" بنجاح` : `Unbanned user "${email}" successfully`);
+      }
+    } catch {
+      onShowToast(isAr ? 'فشل إلغاء الحظر' : 'Failed to unban user');
+    }
+  };
 
   const supabaseSqlSchema = `-- 1. Create characters table in public schema
 CREATE TABLE IF NOT EXISTS public.characters (
@@ -441,6 +532,26 @@ ON CONFLICT (id) DO UPDATE SET
             <span className="flex items-center gap-1.5">
               <span>Supabase</span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('banned')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shrink-0 ${
+              activeSubTab === 'banned'
+                ? 'bg-rose-600 text-white shadow-sm font-bold'
+                : isRamadan
+                  ? 'text-rose-300 hover:text-rose-200 hover:bg-white/5'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-rose-500" />
+            <span className="flex items-center gap-1.5">
+              <span>{isAr ? 'المحظورون' : 'Banned Users'}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-rose-500/20 text-rose-600 dark:text-rose-300 font-bold">
+                {bannedList.length}
+              </span>
             </span>
           </button>
         </div>
@@ -1061,6 +1172,186 @@ ON CONFLICT (id) DO UPDATE SET
                     ? 'ينشئ كود SQL جاهزاً للتشغيل المباشر في Supabase مع خاصية ON CONFLICT لمنع التكرار وتحديث البيانات فورياً.'
                     : 'Generates ready-to-run PostgreSQL INSERT queries with ON CONFLICT clause for instant insertion or updating in Supabase SQL editor.'}
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: BANNED USERS MANAGEMENT PANEL */}
+          {activeSubTab === 'banned' && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>{isAr ? 'إدارة المستخدمين المحظورين والمطرودين' : 'Banned Users & Sanctions'}</span>
+                </h3>
+                <p
+                  className={`text-xs mt-1 ${
+                    isRamadan ? 'text-amber-200/60' : 'text-slate-500'
+                  }`}
+                >
+                  {isAr
+                    ? 'المستخدمون المحظورون يمنعون تلقائياً من إضافة أي تعليق، ويتم تطهير جميع تعليقاتهم السابقة فورياً من التطبيق.'
+                    : 'Banned user accounts are restricted from posting comments, and all their prior comments are purged.'}
+                </p>
+              </div>
+
+              {/* Form to Ban User by Email */}
+              <form
+                onSubmit={handleBanUserSubmit}
+                className={`p-4 rounded-2xl border space-y-3 ${
+                  isRamadan ? 'border-rose-900/50 bg-[#160a12]' : 'border-rose-200 bg-rose-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold text-xs text-rose-700 dark:text-rose-300">
+                  <UserX className="w-4 h-4" />
+                  <span>{isAr ? 'حظر بريد إلكتروني وتطهير تعليقاته' : 'Ban User Email & Purge Comments'}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                      {isAr ? 'البريد الإلكتروني (Google Email) *' : 'Google Email Address *'}
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={banEmailInput}
+                      onChange={(e) => setBanEmailInput(e.target.value)}
+                      placeholder="example@gmail.com"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070c12] text-slate-900 dark:text-slate-100 outline-none focus:border-rose-500 font-sans"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                      {isAr ? 'اسم المستخدم (اختياري)' : 'User Name (Optional)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={banNameInput}
+                      onChange={(e) => setBanNameInput(e.target.value)}
+                      placeholder={isAr ? 'اسم صاحب الحساب' : 'User Display Name'}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070c12] text-slate-900 dark:text-slate-100 outline-none focus:border-rose-500 font-sans"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    {isAr ? 'سبب الحظر' : 'Ban Reason'}
+                  </label>
+                  <input
+                    type="text"
+                    value={banReasonInput}
+                    onChange={(e) => setBanReasonInput(e.target.value)}
+                    placeholder={isAr ? 'سبب الحظر (مثال: تعليقات مسيئة، سب وقذف...)' : 'Reason for ban'}
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070c12] text-slate-900 dark:text-slate-100 outline-none focus:border-rose-500 font-sans"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isBanningUser || !banEmailInput.trim()}
+                  className="w-full sm:w-auto px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-40 flex items-center justify-center gap-1.5"
+                >
+                  {isBanningUser ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <UserX className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isAr ? 'حظر البريد وتطهير التعليقات' : 'Ban User & Purge Comments'}</span>
+                </button>
+              </form>
+
+              {/* Banned Users Table / List */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                    <span>{isAr ? 'قائمة الحسابات المحظورة' : 'Active Banned User Accounts'}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-rose-500/15 text-rose-600 font-bold">
+                      {bannedList.length}
+                    </span>
+                  </span>
+
+                  {/* Filter Input */}
+                  {bannedList.length > 0 && (
+                    <div className="relative w-48">
+                      <input
+                        type="text"
+                        value={bannedSearchQuery}
+                        onChange={(e) => setBannedSearchQuery(e.target.value)}
+                        placeholder={isAr ? 'بحث في المحظورين...' : 'Filter banned...'}
+                        className="w-full px-2.5 py-1 pr-7 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#060e18] text-slate-900 dark:text-slate-100 outline-none font-sans"
+                      />
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2" />
+                    </div>
+                  )}
+                </div>
+
+                {isLoadingBanned ? (
+                  <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
+                    <span>{isAr ? 'جاري تحميل قائمة المحظورين...' : 'Loading banned list...'}</span>
+                  </div>
+                ) : bannedList.length === 0 ? (
+                  <div className="p-6 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 text-slate-500">
+                    <UserCheck className="w-8 h-8 mx-auto mb-1.5 text-emerald-500 opacity-60" />
+                    <p className="text-xs font-medium">
+                      {isAr ? 'لا يوجد أي مستخدم محظور حالياً' : 'No banned users currently'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {bannedList
+                      .filter((b) => {
+                        const q = bannedSearchQuery.trim().toLowerCase();
+                        if (!q) return true;
+                        return (
+                          b.email.toLowerCase().includes(q) ||
+                          (b.userName && b.userName.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((b) => (
+                        <div
+                          key={b.email}
+                          className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1825] flex items-center justify-between gap-3 shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2.5 overflow-hidden">
+                            <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0 border border-rose-300 dark:border-rose-800">
+                              {b.picture ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={b.picture} alt={b.userName} className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                (b.userName || b.email).charAt(0).toUpperCase()
+                              )}
+                            </div>
+
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
+                                {b.userName || 'Banned User'}
+                              </span>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                                {b.email}
+                              </span>
+                              {b.reason && (
+                                <span className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5 truncate">
+                                  {isAr ? `السبب: ${b.reason}` : `Reason: ${b.reason}`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleUnbanUser(b.email)}
+                            className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+                          >
+                            {isAr ? 'إلغاء الحظر' : 'Unban'}
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
