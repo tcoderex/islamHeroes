@@ -12,6 +12,7 @@ export interface CharacterComment {
 }
 
 const COMMENTS_DATA_FILE = path.join(process.cwd(), 'data', 'comments.json');
+const COMMENTS_STORE_ID = '__comments_store__';
 
 // In-memory cache
 let commentsCache: CharacterComment[] | null = null;
@@ -49,35 +50,66 @@ function saveLocalComments(comments: CharacterComment[]) {
 }
 
 /**
- * Retrieves comments, with Supabase integration and local fallback.
+ * Retrieves comments with multi-tier Supabase storage and local fallback:
+ * 1. Supabase public.character_comments table
+ * 2. Supabase public.characters table (__comments_store__ row fallback)
+ * 3. Netlify Blobs store
+ * 4. Local server JSON persistence file (data/comments.json)
  */
 export async function getComments(characterId?: string): Promise<CharacterComment[]> {
-  // 1. Try Supabase table if available
   const supabase = getSupabase();
+
   if (supabase) {
+    // Tier 1: Try dedicated character_comments table
     try {
       let query = supabase.from('character_comments').select('*').order('created_at', { ascending: false });
       if (characterId) {
         query = query.eq('character_id', characterId);
       }
       const { data, error } = await query;
-      if (!error && Array.isArray(data)) {
+      if (!error && Array.isArray(data) && data.length > 0) {
         const mapped: CharacterComment[] = data.map((row) => ({
           id: String(row.id),
           characterId: String(row.character_id),
           userName: String(row.user_name || 'Guest'),
           text: String(row.text || ''),
-          suggestedRating: row.suggested_rating !== null && row.suggested_rating !== undefined ? Number(row.suggested_rating) : undefined,
+          suggestedRating:
+            row.suggested_rating !== null && row.suggested_rating !== undefined
+              ? Number(row.suggested_rating)
+              : undefined,
           createdAt: Number(row.created_at) || Date.now(),
         }));
+        commentsCache = mapped;
         return mapped;
       }
     } catch {
-      // Table doesn't exist or offline, fallback to local store
+      // Table missing or schema error, fall through to fallback store row
+    }
+
+    // Tier 2: Try __comments_store__ row in characters table
+    try {
+      const { data: storeRow, error: storeErr } = await supabase
+        .from('characters')
+        .select('description')
+        .eq('id', COMMENTS_STORE_ID)
+        .maybeSingle();
+
+      if (!storeErr && storeRow && storeRow.description) {
+        const parsed = JSON.parse(storeRow.description);
+        if (Array.isArray(parsed)) {
+          commentsCache = parsed as CharacterComment[];
+          if (characterId) {
+            return commentsCache.filter((c) => c.characterId === characterId);
+          }
+          return commentsCache;
+        }
+      }
+    } catch {
+      // Fall through to Netlify / Local
     }
   }
 
-  // 2. Try Netlify Blobs if in Netlify runtime
+  // Tier 3: Try Netlify Blobs if in Netlify runtime
   try {
     const { getStore } = await import('@netlify/blobs');
     const store = getStore({ name: 'heroes-comments', consistency: 'strong' });
@@ -93,7 +125,7 @@ export async function getComments(characterId?: string): Promise<CharacterCommen
     // fallback
   }
 
-  // 3. In-memory / local JSON store fallback
+  // Tier 4: Local memory cache & disk storage fallback
   if (!commentsCache) {
     commentsCache = loadLocalComments();
   }
@@ -105,9 +137,11 @@ export async function getComments(characterId?: string): Promise<CharacterCommen
 }
 
 /**
- * Adds a new comment and persists it to Supabase and local backup.
+ * Adds a new comment and persists it immediately to Supabase and local backup.
  */
-export async function addComment(commentData: Omit<CharacterComment, 'id' | 'createdAt'>): Promise<CharacterComment> {
+export async function addComment(
+  commentData: Omit<CharacterComment, 'id' | 'createdAt'>
+): Promise<CharacterComment> {
   const newComment: CharacterComment = {
     id: `cmt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     characterId: commentData.characterId,
@@ -120,9 +154,13 @@ export async function addComment(commentData: Omit<CharacterComment, 'id' | 'cre
     createdAt: Date.now(),
   };
 
-  // 1. Try Supabase
+  const currentComments = await getComments();
+  const updatedComments = [newComment, ...currentComments.filter((c) => c.id !== newComment.id)];
+  commentsCache = updatedComments;
+
   const supabase = getSupabase();
   if (supabase) {
+    // 1. Try dedicated table insert
     try {
       await supabase.from('character_comments').insert({
         id: newComment.id,
@@ -133,56 +171,82 @@ export async function addComment(commentData: Omit<CharacterComment, 'id' | 'cre
         created_at: newComment.createdAt,
       });
     } catch {
-      // ignore table missing
+      // ignore
     }
-  }
 
-  // 2. Update local and memory cache
-  const all = await getComments();
-  const updated = [newComment, ...all.filter((c) => c.id !== newComment.id)];
-  commentsCache = updated;
-  saveLocalComments(updated);
-
-  // 3. Try Netlify Blobs
-  try {
-    const { getStore } = await import('@netlify/blobs');
-    const store = getStore({ name: 'heroes-comments', consistency: 'strong' });
-    await store.setJSON('all-comments', updated);
-  } catch {
-    // ignore
-  }
-
-  return newComment;
-}
-
-/**
- * Deletes a comment by ID (Admin only).
- */
-export async function deleteComment(id: string): Promise<boolean> {
-  // 1. Try Supabase
-  const supabase = getSupabase();
-  if (supabase) {
+    // 2. Always persist to characters table __comments_store__ row as guaranteed Supabase backup
     try {
-      await supabase.from('character_comments').delete().eq('id', id);
+      await supabase.from('characters').upsert({
+        id: COMMENTS_STORE_ID,
+        name: 'System Comments Store',
+        picture: '',
+        rating: 0,
+        description: JSON.stringify(updatedComments),
+        updated_at: Date.now(),
+      });
     } catch {
       // ignore
     }
   }
 
-  // 2. Update local store
-  const all = await getComments();
-  const updated = all.filter((c) => c.id !== id);
-  commentsCache = updated;
-  saveLocalComments(updated);
-
-  // 3. Try Netlify Blobs
+  // 3. Save to Netlify Blobs
   try {
     const { getStore } = await import('@netlify/blobs');
     const store = getStore({ name: 'heroes-comments', consistency: 'strong' });
-    await store.setJSON('all-comments', updated);
+    await store.setJSON('all-comments', updatedComments);
   } catch {
     // ignore
   }
+
+  // 4. Save to local disk
+  saveLocalComments(updatedComments);
+
+  return newComment;
+}
+
+/**
+ * Deletes a comment by ID (Admin only) and syncs across Supabase and backups.
+ */
+export async function deleteComment(id: string): Promise<boolean> {
+  const currentComments = await getComments();
+  const updatedComments = currentComments.filter((c) => c.id !== id);
+  commentsCache = updatedComments;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    // 1. Try dedicated table delete
+    try {
+      await supabase.from('character_comments').delete().eq('id', id);
+    } catch {
+      // ignore
+    }
+
+    // 2. Sync updated list to characters table __comments_store__ row
+    try {
+      await supabase.from('characters').upsert({
+        id: COMMENTS_STORE_ID,
+        name: 'System Comments Store',
+        picture: '',
+        rating: 0,
+        description: JSON.stringify(updatedComments),
+        updated_at: Date.now(),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  // 3. Save to Netlify Blobs
+  try {
+    const { getStore } = await import('@netlify/blobs');
+    const store = getStore({ name: 'heroes-comments', consistency: 'strong' });
+    await store.setJSON('all-comments', updatedComments);
+  } catch {
+    // ignore
+  }
+
+  // 4. Save to local disk
+  saveLocalComments(updatedComments);
 
   return true;
 }
