@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComments, addComment, deleteComment } from '@/lib/commentsStorage';
+import { getComments, addComment, deleteComment, deleteCommentsByGuest } from '@/lib/commentsStorage';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
 
     const comments = await getComments(characterId);
 
-    // Compute stats if characterId is provided
     let count = comments.length;
     let avgSuggestedRating: number | null = null;
 
@@ -24,7 +23,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Also build a counts map of characterId -> count for convenient UI badge display
     const countsMap: Record<string, number> = {};
     if (!characterId) {
       comments.forEach((c) => {
@@ -46,7 +44,7 @@ export async function GET(req: NextRequest) {
         },
       }
     );
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, error: 'Failed to fetch comments' },
       { status: 500 }
@@ -54,11 +52,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/comments - Add user comment and rating suggestion
+// POST /api/comments - Add user comment
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { characterId, userName, text, suggestedRating } = body;
+    const { characterId, userName, text, guestId, suggestedRating } = body;
 
     if (!characterId || typeof characterId !== 'string') {
       return NextResponse.json({ success: false, error: 'Character ID is required' }, { status: 400 });
@@ -72,6 +70,7 @@ export async function POST(req: NextRequest) {
       characterId,
       userName: typeof userName === 'string' && userName.trim() ? userName.trim() : 'Guest',
       text: text.trim(),
+      guestId: typeof guestId === 'string' && guestId.trim() ? guestId.trim() : undefined,
       suggestedRating: suggestedRating !== undefined && suggestedRating !== null ? Number(suggestedRating) : undefined,
     });
 
@@ -79,7 +78,7 @@ export async function POST(req: NextRequest) {
       { success: true, comment: newComment },
       { headers: { 'Cache-Control': 'no-store' } }
     );
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, error: 'Failed to add comment' },
       { status: 500 }
@@ -87,22 +86,36 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/comments?id=... - Admin delete inappropriate comment
+// DELETE /api/comments?id=... or ?guestId=... - Admin delete
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    const guestId = searchParams.get('guestId');
 
-    if (!id) {
-      return NextResponse.json({ success: false, error: 'Comment ID is required' }, { status: 400 });
+    if (guestId) {
+      await deleteCommentsByGuest(guestId);
+      return NextResponse.json(
+        { success: true, message: 'Successfully deleted all comments by guest' },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
     }
 
-    await deleteComment(id);
+    if (id) {
+      await deleteComment(id);
+      return NextResponse.json(
+        { success: true, message: 'Successfully deleted comment' },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
 
-    return NextResponse.json({ success: true }, { headers: { 'Cache-Control': 'no-store' } });
-  } catch (error) {
     return NextResponse.json(
-      { success: false, error: 'Failed to delete comment' },
+      { success: false, error: 'Comment ID or Guest ID parameter is required' },
+      { status: 400 }
+    );
+  } catch {
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete comment(s)' },
       { status: 500 }
     );
   }

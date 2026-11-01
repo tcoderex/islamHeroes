@@ -7,6 +7,7 @@ export interface CharacterComment {
   characterId: string;
   userName: string;
   text: string;
+  guestId?: string; // Persistent browser guest identifier
   suggestedRating?: number; // -1000 to 1000
   createdAt: number;
 }
@@ -73,6 +74,7 @@ export async function getComments(characterId?: string): Promise<CharacterCommen
           characterId: String(row.character_id),
           userName: String(row.user_name || 'Guest'),
           text: String(row.text || ''),
+          guestId: row.guest_id ? String(row.guest_id) : row.guestId ? String(row.guestId) : undefined,
           suggestedRating:
             row.suggested_rating !== null && row.suggested_rating !== undefined
               ? Number(row.suggested_rating)
@@ -147,6 +149,7 @@ export async function addComment(
     characterId: commentData.characterId,
     userName: commentData.userName.trim() || 'Guest',
     text: commentData.text.trim(),
+    guestId: commentData.guestId ? commentData.guestId.trim() : undefined,
     suggestedRating:
       commentData.suggestedRating !== undefined
         ? Math.max(-1000, Math.min(1000, Number(commentData.suggestedRating)))
@@ -167,6 +170,7 @@ export async function addComment(
         character_id: newComment.characterId,
         user_name: newComment.userName,
         text: newComment.text,
+        guest_id: newComment.guestId || null,
         suggested_rating: newComment.suggestedRating !== undefined ? newComment.suggestedRating : null,
         created_at: newComment.createdAt,
       });
@@ -205,7 +209,7 @@ export async function addComment(
 }
 
 /**
- * Deletes a comment by ID (Admin only) and syncs across Supabase and backups.
+ * Deletes a single comment by ID (Admin only) and syncs across Supabase and backups.
  */
 export async function deleteComment(id: string): Promise<boolean> {
   const currentComments = await getComments();
@@ -214,14 +218,12 @@ export async function deleteComment(id: string): Promise<boolean> {
 
   const supabase = getSupabase();
   if (supabase) {
-    // 1. Try dedicated table delete
     try {
       await supabase.from('character_comments').delete().eq('id', id);
     } catch {
       // ignore
     }
 
-    // 2. Sync updated list to characters table __comments_store__ row
     try {
       await supabase.from('characters').upsert({
         id: COMMENTS_STORE_ID,
@@ -236,7 +238,6 @@ export async function deleteComment(id: string): Promise<boolean> {
     }
   }
 
-  // 3. Save to Netlify Blobs
   try {
     const { getStore } = await import('@netlify/blobs');
     const store = getStore({ name: 'heroes-comments', consistency: 'strong' });
@@ -245,8 +246,50 @@ export async function deleteComment(id: string): Promise<boolean> {
     // ignore
   }
 
-  // 4. Save to local disk
   saveLocalComments(updatedComments);
+  return true;
+}
 
+/**
+ * Deletes ALL comments by a specific guestId or userName (Admin Ban / Wipe user).
+ */
+export async function deleteCommentsByGuest(guestIdentifier: string): Promise<boolean> {
+  const currentComments = await getComments();
+  const updatedComments = currentComments.filter(
+    (c) => c.guestId !== guestIdentifier && c.userName !== guestIdentifier
+  );
+  commentsCache = updatedComments;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      await supabase.from('character_comments').delete().or(`guest_id.eq.${guestIdentifier},user_name.eq.${guestIdentifier}`);
+    } catch {
+      // ignore
+    }
+
+    try {
+      await supabase.from('characters').upsert({
+        id: COMMENTS_STORE_ID,
+        name: 'System Comments Store',
+        picture: '',
+        rating: 0,
+        description: JSON.stringify(updatedComments),
+        updated_at: Date.now(),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    const { getStore } = await import('@netlify/blobs');
+    const store = getStore({ name: 'heroes-comments', consistency: 'strong' });
+    await store.setJSON('all-comments', updatedComments);
+  } catch {
+    // ignore
+  }
+
+  saveLocalComments(updatedComments);
   return true;
 }
