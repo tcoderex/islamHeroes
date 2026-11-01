@@ -1024,18 +1024,17 @@ export default function CharactersView({
       {isLoading ? (
         <div className="space-y-4">
           <div
-            className={`flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border backdrop-blur-md animate-pulse ${
+            className={`flex items-center justify-center gap-2.5 py-3.5 px-5 rounded-2xl border backdrop-blur-md ${
               isRamadan
-                ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                : 'bg-blue-50 border-blue-200/80 text-[#0067c0]'
+                ? 'bg-gradient-to-r from-amber-500/10 via-amber-400/15 to-amber-500/10 border-amber-500/35 text-amber-200 shadow-sm'
+                : 'bg-gradient-to-r from-blue-50/80 via-sky-50 to-blue-50/80 border-blue-200 text-[#0067c0] shadow-sm'
             }`}
           >
-            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-            <span className="text-xs sm:text-sm font-semibold">
-              {isAr
-                ? 'جاري مزامنة وتحميل الشخصيات من قاعدة بيانات Supabase...'
-                : 'Syncing and loading figures from Supabase database...'}
+            <Sparkles className="w-4 h-4 text-amber-400 animate-spin duration-1000 shrink-0" />
+            <span className="text-xs sm:text-sm font-bold tracking-wide">
+              سبحان الله وبحمده سبحان الله العظيم
             </span>
+            <Sparkles className="w-4 h-4 text-amber-400 animate-spin duration-1000 shrink-0" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4 md:gap-6">
@@ -1314,7 +1313,7 @@ export default function CharactersView({
                             ? 'bg-[#152e42] hover:bg-[#1c3c56] text-amber-300 border border-amber-500/40 shadow-amber-500/10'
                             : 'bg-blue-50 hover:bg-blue-100 text-[#0067c0] border border-blue-200 shadow-blue-500/10'
                         }`}
-                        title={isAr ? 'عرض تعليقات واقتراحات التقييم' : 'View user comments & rating suggestions'}
+                        title={isAr ? 'عرض تعليقات المستخدمين' : 'View user comments'}
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
                         <span className="hidden xs:inline sm:inline">

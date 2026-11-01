@@ -270,7 +270,7 @@ export default function CharacterPreviewModal({
                 className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-[#0067c0] bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
-                <span>{isAr ? 'التعليقات ومقترحات التقييم' : 'Comments & Rating Suggestions'}</span>
+                <span>{isAr ? 'التعليقات' : 'Comments'}</span>
               </button>
 
               <button
