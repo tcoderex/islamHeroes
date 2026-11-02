@@ -1111,7 +1111,7 @@ export default function HomePage() {
                           }`}
                         />
                         <div
-                          className={`absolute top-3 left-1/2 -translate-x-1/2 w-14 h-6 rounded-full ${
+                          className={`absolute top-3 right-3 w-16 h-7 rounded-full ${
                             isRamadan ? 'bg-amber-400/20' : 'bg-slate-300'
                           }`}
                         />
@@ -1233,29 +1233,29 @@ export default function HomePage() {
                           className="absolute top-3 left-3 sm:top-3.5 sm:left-3.5 z-20"
                         />
 
-                        {/* Top-center: Glowing Score Badge */}
-                        <GlowingScoreBadge
-                          rating={char.rating}
-                          size="md"
-                          className="absolute top-3 sm:top-3.5 left-1/2 -translate-x-1/2 z-20"
-                        />
+                        {/* Top-right: Glowing Score Badge (Bigger) & Admin Move Button */}
+                        <div
+                          className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 z-20 flex items-center gap-1.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <GlowingScoreBadge
+                            rating={char.rating}
+                            size="lg"
+                          />
 
-                        {/* Top-right: Admin Move / Reposition Button */}
-                        {isAdmin && (
-                          <div
-                            className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 flex items-center gap-1 z-20 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-white/20 text-white shadow-lg"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => setRepositioningChar(char)}
-                              className="p-1 sm:p-1.5 rounded-lg text-amber-300 hover:text-amber-100 hover:bg-amber-500/30 transition-all cursor-pointer"
-                              title={isAr ? 'تحريك وضبط موضع الصورة' : 'Reposition picture'}
-                            >
-                              <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            </button>
-                          </div>
-                        )}
+                          {isAdmin && (
+                            <div className="flex items-center gap-1 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-2xl border border-white/20 text-white shadow-lg">
+                              <button
+                                type="button"
+                                onClick={() => setRepositioningChar(char)}
+                                className="p-1 sm:p-1.5 rounded-xl text-amber-300 hover:text-amber-100 hover:bg-amber-500/30 transition-all cursor-pointer"
+                                title={isAr ? 'تحريك وضبط موضع الصورة' : 'Reposition picture'}
+                              >
+                                <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Card Content */}

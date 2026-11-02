@@ -60,13 +60,18 @@ export default function AdminSettingsModal({
   onShowToast,
   isAr,
 }: AdminSettingsModalProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'theme' | 'template' | 'backup' | 'supabase' | 'banned'>('theme');
+  const [activeSubTab, setActiveSubTab] = useState<'theme' | 'template' | 'backup' | 'supabase' | 'users' | 'banned'>('theme');
   const [showConfirmReplace, setShowConfirmReplace] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [copiedInserts, setCopiedInserts] = useState(false);
   const [exportCharactersChecked, setExportCharactersChecked] = useState(true);
   const [exportCommentsChecked, setExportCommentsChecked] = useState(true);
+
+  // Registered Users State
+  const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
 
   // Banned Users Management State
   const [bannedList, setBannedList] = useState<any[]>([]);
@@ -78,6 +83,21 @@ export default function AdminSettingsModal({
   const [bannedSearchQuery, setBannedSearchQuery] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const fetchRegisteredUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const res = await fetch('/api/users');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users)) {
+        setRegisteredUsers(data.users);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
 
   const fetchBannedUsers = async () => {
     setIsLoadingBanned(true);
@@ -96,6 +116,7 @@ export default function AdminSettingsModal({
 
   useEffect(() => {
     if (isOpen) {
+      fetchRegisteredUsers();
       fetchBannedUsers();
     }
   }, [isOpen]);
@@ -532,6 +553,28 @@ ON CONFLICT (id) DO UPDATE SET
             <span className="flex items-center gap-1.5">
               <span>Supabase</span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('users')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shrink-0 ${
+              activeSubTab === 'users'
+                ? isRamadan
+                  ? 'bg-amber-400 text-slate-950 shadow-sm font-bold'
+                  : 'bg-[#0067c0] text-white shadow-sm font-bold'
+                : isRamadan
+                  ? 'text-amber-200/70 hover:text-amber-100 hover:bg-white/5'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Users className="w-4 h-4 text-sky-500" />
+            <span className="flex items-center gap-1.5">
+              <span>{isAr ? 'المستخدمون المسجلون' : 'Registered Users'}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-sky-500/20 text-sky-600 dark:text-sky-300 font-bold">
+                {registeredUsers.length}
+              </span>
             </span>
           </button>
 
@@ -1176,7 +1219,130 @@ ON CONFLICT (id) DO UPDATE SET
             </div>
           )}
 
-          {/* TAB 5: BANNED USERS MANAGEMENT PANEL */}
+          {/* TAB 5: REGISTERED USERS LIST & MANAGEMENT */}
+          {activeSubTab === 'users' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2 text-[#0067c0] dark:text-sky-400">
+                    <Users className="w-4 h-4" />
+                    <span>{isAr ? 'المستخدمون المسجلون وقاعدة البيانات' : 'Registered Users Database'}</span>
+                  </h3>
+                  <p
+                    className={`text-xs mt-0.5 ${
+                      isRamadan ? 'text-amber-200/60' : 'text-slate-500'
+                    }`}
+                  >
+                    {isAr
+                      ? 'قائمة بجميع المستخدمين الذين سجلوا دخولهم موحداً بـ Google. يمكنك حظر أي مستخدم مباشرة من هنا.'
+                      : 'List of all users authenticated with Google. You can ban any profile directly.'}
+                  </p>
+                </div>
+
+                {registeredUsers.length > 0 && (
+                  <div className="relative w-48">
+                    <input
+                      type="text"
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      placeholder={isAr ? 'بحث في المستخدمين...' : 'Search users...'}
+                      className="w-full px-2.5 py-1 pr-7 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#060e18] text-slate-900 dark:text-slate-100 outline-none font-sans"
+                    />
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2" />
+                  </div>
+                )}
+              </div>
+
+              {isLoadingUsers ? (
+                <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-[#0067c0]" />
+                  <span>{isAr ? 'جاري تحميل قائمة المستخدمين...' : 'Loading registered users...'}</span>
+                </div>
+              ) : registeredUsers.length === 0 ? (
+                <div className="p-6 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 text-slate-500">
+                  <Users className="w-8 h-8 mx-auto mb-1.5 opacity-40 text-[#0067c0]" />
+                  <p className="text-xs font-medium">
+                    {isAr ? 'لم يقم أي مستخدم بتسجيل الدخول بعد' : 'No users signed in yet'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {registeredUsers
+                    .filter((u) => {
+                      const q = userSearchQuery.trim().toLowerCase();
+                      if (!q) return true;
+                      return (
+                        u.email.toLowerCase().includes(q) ||
+                        (u.name && u.name.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((u) => {
+                      const isBanned = bannedList.some((b) => b.email.toLowerCase() === u.email.toLowerCase());
+
+                      return (
+                        <div
+                          key={u.email}
+                          className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1825] flex items-center justify-between gap-3 shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2.5 overflow-hidden">
+                            <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-100 shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={
+                                  u.picture ||
+                                  `https://unavatar.io/${encodeURIComponent(u.email)}?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.email)}`
+                                }
+                                alt={u.name}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
+                                <span>{u.name}</span>
+                                {isBanned && (
+                                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-500 text-white shrink-0">
+                                    {isAr ? 'محظور' : 'Banned'}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                                {u.email}
+                              </span>
+                            </div>
+                          </div>
+
+                          {!isBanned ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBanEmailInput(u.email);
+                                setBanNameInput(u.name);
+                                setActiveSubTab('banned');
+                              }}
+                              className="px-3 py-1 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+                            >
+                              {isAr ? 'حظر هذا المستخدم' : 'Ban User'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleUnbanUser(u.email)}
+                              className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+                            >
+                              {isAr ? 'إلغاء الحظر' : 'Unban'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 6: BANNED USERS MANAGEMENT PANEL */}
           {activeSubTab === 'banned' && (
             <div className="space-y-5">
               <div>

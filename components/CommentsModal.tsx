@@ -91,14 +91,26 @@ export default function CommentsModal({
     }
   }, []);
 
-  const handleUserChange = (user: GoogleUserProfile | null) => {
-    setGoogleUser(user);
+  const handleUserChange = useCallback((user: GoogleUserProfile | null) => {
+    setGoogleUser((prev) => {
+      if (
+        prev &&
+        user &&
+        prev.email === user.email &&
+        prev.googleId === user.googleId &&
+        prev.name === user.name
+      ) {
+        return prev;
+      }
+      return user;
+    });
+
     if (user) {
       checkBanStatus(user.email, user.googleId);
     } else {
       setIsBanned(false);
     }
-  };
+  }, [checkBanStatus]);
 
   const charId = character?.id;
 

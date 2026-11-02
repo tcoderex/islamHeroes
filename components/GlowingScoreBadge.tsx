@@ -124,7 +124,7 @@ export default function GlowingScoreBadge({
     size === 'sm'
       ? 'px-2.5 py-1 text-xs gap-1.5'
       : size === 'lg'
-        ? 'px-4 sm:px-5 py-2 text-sm sm:text-base gap-2 sm:gap-2.5'
+        ? 'px-3.5 sm:px-4.5 py-1.5 sm:py-2 text-sm sm:text-base font-black tracking-tight gap-2 sm:gap-2.5 shadow-lg'
         : 'px-3 sm:px-3.5 py-1 sm:py-1.5 text-xs sm:text-sm gap-1.5 sm:gap-2';
 
   const defaultPosition = className.includes('absolute') || className.includes('fixed') ? '' : 'relative';
@@ -136,7 +136,13 @@ export default function GlowingScoreBadge({
       aria-label={`Score: ${formattedScore}`}
     >
       {/* Tier Glowing Icon */}
-      {config.icon}
+      {size === 'lg' ? (
+        <span className="[&>svg]:w-4 [&>svg]:h-4 sm:[&>svg]:w-5 sm:[&>svg]:h-5 flex items-center justify-center shrink-0">
+          {config.icon}
+        </span>
+      ) : (
+        config.icon
+      )}
 
       {/* Glowing Numeric Score */}
       <span className={`tracking-tight ${config.textGlow}`}>

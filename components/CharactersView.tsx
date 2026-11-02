@@ -1058,7 +1058,7 @@ export default function CharactersView({
                     }`}
                   />
                   <div
-                    className={`absolute top-3 left-1/2 -translate-x-1/2 w-14 h-6 rounded-full ${
+                    className={`absolute top-3 right-3 w-16 h-7 rounded-full ${
                       isRamadan ? 'bg-amber-400/20' : 'bg-slate-300'
                     }`}
                   />
@@ -1188,45 +1188,45 @@ export default function CharactersView({
                     className="absolute top-3 left-3 sm:top-3.5 sm:left-3.5 z-20"
                   />
 
-                  {/* 2. ON PICTURE MIDDLE-TOP: Glowing Score Badge */}
-                  <GlowingScoreBadge
-                    rating={char.rating}
-                    size="md"
-                    className="absolute top-3 sm:top-3.5 left-1/2 -translate-x-1/2 z-20"
-                  />
+                  {/* 2. ON PICTURE TOP-RIGHT: Glowing Score Badge (Bigger) & Admin Actions */}
+                  <div
+                    className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 z-20 flex items-center gap-1.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <GlowingScoreBadge
+                      rating={char.rating}
+                      size="lg"
+                    />
 
-                  {/* 3. ON PICTURE TOP-RIGHT: Admin Actions (Move/Reposition, Edit & Delete) */}
-                  {isAdmin && (
-                    <div
-                      className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 flex items-center gap-1 z-20 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-white/20 text-white shadow-lg"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleStartReposition(char)}
-                        className="p-1 sm:p-1.5 rounded-lg text-amber-300 hover:text-amber-100 hover:bg-amber-500/30 transition-all cursor-pointer"
-                        title={isAr ? 'تحريك وضبط موضع الصورة' : 'Reposition picture'}
-                      >
-                        <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(char)}
-                        className="p-1 sm:p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
-                        title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
-                      >
-                        <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteCharacter(char.id)}
-                        className="p-1 sm:p-1.5 rounded-lg text-rose-300 hover:text-rose-100 hover:bg-rose-500/30 transition-all cursor-pointer"
-                        title={isAr ? 'حذف الشخصية' : 'Delete'}
-                      >
-                        <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      </button>
-                    </div>
-                  )}
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-2xl border border-white/20 text-white shadow-lg">
+                        <button
+                          type="button"
+                          onClick={() => handleStartReposition(char)}
+                          className="p-1 sm:p-1.5 rounded-xl text-amber-300 hover:text-amber-100 hover:bg-amber-500/30 transition-all cursor-pointer"
+                          title={isAr ? 'تحريك وضبط موضع الصورة' : 'Reposition picture'}
+                        >
+                          <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(char)}
+                          className="p-1 sm:p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
+                          title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
+                        >
+                          <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteCharacter(char.id)}
+                          className="p-1 sm:p-1.5 rounded-xl text-rose-300 hover:text-rose-100 hover:bg-rose-500/30 transition-all cursor-pointer"
+                          title={isAr ? 'حذف الشخصية' : 'Delete'}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Character Details: Name, Description, and Tier */}

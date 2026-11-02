@@ -95,11 +95,11 @@ export default function CharacterPreviewModal({
             className="absolute top-3 left-3 z-30"
           />
 
-          {/* Top-Middle Glowing Score Badge */}
+          {/* Top-Right Glowing Score Badge */}
           <GlowingScoreBadge
             rating={rating}
-            size="md"
-            className="absolute top-3 left-1/2 -translate-x-1/2 z-30"
+            size="lg"
+            className="absolute top-3 right-3 z-30"
           />
 
           {character.picture && !imgError ? (

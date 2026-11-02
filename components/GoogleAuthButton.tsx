@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { LogOut, User, ShieldAlert, X, Check, Sparkles, Mail, UserCheck } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { LogOut, ShieldAlert, X, Check, Mail, UserCheck, Sparkles } from 'lucide-react';
 
 export interface GoogleUserProfile {
   googleId: string;
@@ -34,26 +34,15 @@ export default function GoogleAuthButton({
   const [inputEmail, setInputEmail] = useState('');
   const [inputName, setInputName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
-  // Restore existing user session from LocalStorage on mount
+  // Stable callback ref to decouple parent callback re-renders from state loops
+  const onUserChangeRef = useRef(onUserChange);
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('heroes_google_user');
-      if (stored) {
-        const parsed = JSON.parse(stored) as GoogleUserProfile;
-        if (parsed && parsed.email) {
-          setUser(parsed);
-          onUserChange?.(parsed);
-          checkBanStatus(parsed.email, parsed.googleId);
-        }
-      }
-    } catch {
-      // ignore
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    onUserChangeRef.current = onUserChange;
+  }, [onUserChange]);
 
-  const checkBanStatus = async (email: string, googleId?: string) => {
+  const checkBanStatus = useCallback(async (email: string, googleId?: string) => {
     try {
       const query = email
         ? `email=${encodeURIComponent(email)}`
@@ -61,18 +50,71 @@ export default function GoogleAuthButton({
       const res = await fetch(`/api/banned-users?${query}`);
       const data = await res.json();
       if (data.success && data.isBanned) {
-        setIsBanned(true);
+        setIsBanned((prev) => (prev === true ? prev : true));
       } else {
-        setIsBanned(false);
+        setIsBanned((prev) => (prev === false ? prev : false));
       }
     } catch {
       // ignore
     }
-  };
+  }, []);
+
+  // Sync session state safely from LocalStorage with strict object equality checks
+  const syncSession = useCallback(() => {
+    try {
+      const stored = localStorage.getItem('heroes_google_user');
+      if (stored) {
+        const parsed = JSON.parse(stored) as GoogleUserProfile;
+        if (parsed && parsed.email) {
+          setUser((prev) => {
+            if (
+              prev &&
+              prev.email === parsed.email &&
+              prev.googleId === parsed.googleId &&
+              prev.name === parsed.name &&
+              prev.picture === parsed.picture
+            ) {
+              return prev;
+            }
+            return parsed;
+          });
+          checkBanStatus(parsed.email, parsed.googleId);
+          return;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    setUser(null);
+    setIsBanned(false);
+  }, [checkBanStatus]);
+
+  // Notify parent component safely after render whenever user state updates
+  useEffect(() => {
+    onUserChangeRef.current?.(user);
+  }, [user]);
+
+  // Listen to cross-component auth events and localStorage changes safely
+  useEffect(() => {
+    syncSession();
+
+    const handleAuthChange = () => {
+      syncSession();
+    };
+
+    window.addEventListener('heroes_auth_change', handleAuthChange);
+    window.addEventListener('storage', handleAuthChange);
+
+    return () => {
+      window.removeEventListener('heroes_auth_change', handleAuthChange);
+      window.removeEventListener('storage', handleAuthChange);
+    };
+  }, [syncSession]);
 
   const openSignInModal = () => {
     setInputEmail('tcoderex@gmail.com');
     setInputName('Tcoder');
+    setAvatarError(false);
     setIsModalOpen(true);
   };
 
@@ -87,17 +129,37 @@ export default function GoogleAuthButton({
       defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
     const finalName = inputName.trim() || formattedName || 'Google User';
 
+    // Single deterministic unique ID per email address (No multiple user creation!)
+    const deterministicGoogleId = `google_user_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`;
+
+    // Auto-detect Gmail profile picture using Unavatar with DiceBear fallback
+    const detectedPicture = `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`;
+
     const googleUser: GoogleUserProfile = {
-      googleId: `google_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      googleId: deterministicGoogleId,
       email: cleanEmail,
       name: finalName,
-      picture: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
+      picture: detectedPicture,
       signedInAt: Date.now(),
     };
 
+    // Register user to central database so admin can manage/ban them
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(googleUser),
+      });
+    } catch {
+      // ignore
+    }
+
     setUser(googleUser);
     localStorage.setItem('heroes_google_user', JSON.stringify(googleUser));
-    onUserChange?.(googleUser);
+
+    // Dispatch global event for instant 0ms sync across all components
+    window.dispatchEvent(new Event('heroes_auth_change'));
+
     await checkBanStatus(googleUser.email, googleUser.googleId);
 
     setIsSubmitting(false);
@@ -112,7 +174,8 @@ export default function GoogleAuthButton({
     } catch {
       // ignore
     }
-    onUserChange?.(null);
+    // Instant event dispatch to log out across all components
+    window.dispatchEvent(new Event('heroes_auth_change'));
   };
 
   return (
@@ -126,9 +189,14 @@ export default function GoogleAuthButton({
           <div className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-100 shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={user.picture}
+              src={
+                avatarError
+                  ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email)}`
+                  : user.picture
+              }
               alt={user.name}
               referrerPolicy="no-referrer"
+              onError={() => setAvatarError(true)}
               className="w-full h-full object-cover"
             />
           </div>
@@ -143,7 +211,7 @@ export default function GoogleAuthButton({
                 </span>
               )}
             </span>
-            <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate hidden sm:block">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate hidden sm:block font-mono">
               {user.email}
             </span>
           </div>
@@ -239,7 +307,7 @@ export default function GoogleAuthButton({
                     {isAr ? 'تسجيل الدخول بـ Google' : 'Sign in with Google'}
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {isAr ? 'إنشاء ملف شخصي موثق للتعليق' : 'Create verified profile for commenting'}
+                    {isAr ? 'إنشاء حساب موحد وتحديد الصورة شخصية' : 'Single account & automatic picture detection'}
                   </p>
                 </div>
               </div>
@@ -270,7 +338,7 @@ export default function GoogleAuthButton({
                   <div className="w-7 h-7 rounded-full overflow-hidden border border-blue-300 dark:border-blue-700 bg-slate-200 shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="https://api.dicebear.com/7.x/avataaars/svg?seed=tcoderex%40gmail.com"
+                      src="https://unavatar.io/tcoderex@gmail.com?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=tcoderex%40gmail.com"
                       alt="Tcoder"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
@@ -326,7 +394,7 @@ export default function GoogleAuthButton({
                 disabled={isSubmitting || !inputEmail.trim()}
                 className="w-full py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0067c0] hover:bg-[#005fb8] text-white transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
               >
-                {isAr ? 'تأكيد ودخول' : 'Confirm & Sign In'}
+                {isAr ? 'تأكيد ودخول موحد' : 'Confirm & Sign In'}
               </button>
             </form>
           </div>
