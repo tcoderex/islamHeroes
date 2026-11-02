@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Plus,
   Trash2,
@@ -365,8 +365,14 @@ export default function CharactersView({
 
   const isRamadan = theme === 'ramadan';
 
+  const gridTopRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    gridTopRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [currentPage]);
+
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
+      <div ref={gridTopRef} />
       {/* 1. UNIFIED PROMINENT SEARCH BAR */}
       <div className="w-full max-w-3xl mx-auto">
         <div className="relative group">

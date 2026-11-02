@@ -542,6 +542,11 @@ export default function HomePage() {
   const searchEndIndex = Math.min(searchStartIndex + SEARCH_ITEMS_PER_PAGE, filteredSearchCharacters.length);
   const paginatedSearchCharacters = filteredSearchCharacters.slice(searchStartIndex, searchEndIndex);
 
+  const searchGridTopRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    searchGridTopRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [searchPage]);
+
   const isRamadan = theme === 'ramadan';
 
   return (
@@ -554,6 +559,7 @@ export default function HomePage() {
           : 'bg-[#f3f7fd] text-slate-800 selection:bg-[#0067c0]/15 selection:text-[#0067c0]'
       }`}
     >
+      <div ref={searchGridTopRef} />
       {/* Ambient background glow */}
       <div
         className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
