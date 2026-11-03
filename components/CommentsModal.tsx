@@ -312,17 +312,18 @@ export default function CommentsModal({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md p-3 sm:p-6 animate-in fade-in duration-150"
       onClick={onClose}
     >
-      <div
-        className={`relative w-full max-w-xl border rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col transition-all ${
-          isRamadan
-            ? 'border-slate-700/80 bg-[#0a1520] text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.6)]'
-            : 'border-slate-200 bg-white text-slate-900 shadow-[0_20px_60px_rgba(0,103,192,0.12)]'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex min-h-full items-center justify-center p-3 sm:p-4">
+        <div
+          className={`relative w-full max-w-xl border rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh] transition-all text-left ${
+            isRamadan
+              ? 'border-slate-700/80 bg-[#0a1520] text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.6)]'
+              : 'border-slate-200 bg-white text-slate-900 shadow-[0_20px_60px_rgba(0,103,192,0.12)]'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Header */}
         <div
           className={`p-3.5 sm:p-4 border-b flex items-center justify-between gap-3 ${
@@ -602,5 +603,6 @@ export default function CommentsModal({
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

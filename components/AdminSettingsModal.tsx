@@ -281,6 +281,37 @@ ON CONFLICT (id) DO UPDATE SET
     }
   };
 
+  const handlePurgeUserComments = async (userEmail: string, userName: string) => {
+    if (
+      !confirm(
+        isAr
+          ? `حذف ومسح جميع تعليقات ورسائل المستخدم "${userName}" (${userEmail}) من التطبيق بدون حظره؟`
+          : `Delete ALL comments and messages for user "${userName}" (${userEmail}) without banning them?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/comments?email=${encodeURIComponent(userEmail)}&userName=${encodeURIComponent(userName)}`,
+        { method: 'DELETE' }
+      );
+      const data = await res.json();
+      if (data.success) {
+        onShowToast(
+          isAr
+            ? `تم مسح جميع تعليقات ورسائل المستخدم "${userName}" بنجاح!`
+            : `Successfully deleted all messages for user "${userName}"!`
+        );
+      } else {
+        onShowToast(data.error || (isAr ? 'فشل مسح تعليقات المستخدم' : 'Failed to delete user messages'));
+      }
+    } catch {
+      onShowToast(isAr ? 'خطأ أثناء مسح التعليقات' : 'Error deleting user messages');
+    }
+  };
+
   if (!isOpen) return null;
 
   const handleAppendTemplate = () => {
@@ -406,27 +437,28 @@ ON CONFLICT (id) DO UPDATE SET
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md p-3 sm:p-6 animate-in fade-in duration-200"
       dir={isAr ? 'rtl' : 'ltr'}
       onClick={onClose}
     >
-      {/* Hidden file input for import */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json,application/json"
-        onChange={handleImportFile}
-        className="hidden"
-      />
+      <div className="flex min-h-full items-center justify-center p-3 sm:p-6">
+        {/* Hidden file input for import */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          onChange={handleImportFile}
+          className="hidden"
+        />
 
-      <div
-        className={`relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden transition-all duration-300 ${
-          isRamadan
-            ? 'bg-[#0c1824] border-amber-500/40 text-amber-50 shadow-[0_20px_60px_rgba(245,158,11,0.15)]'
-            : 'bg-white border-slate-200 text-slate-800 shadow-[0_20px_60px_rgba(0,103,192,0.15)]'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
+        <div
+          className={`relative w-full max-w-2xl flex flex-col rounded-3xl border shadow-2xl overflow-hidden transition-all duration-300 my-auto max-h-[90vh] text-left ${
+            isRamadan
+              ? 'bg-[#0c1824] border-amber-500/40 text-amber-50 shadow-[0_20px_60px_rgba(245,158,11,0.15)]'
+              : 'bg-white border-slate-200 text-slate-800 shadow-[0_20px_60px_rgba(0,103,192,0.15)]'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Festive Ramadan top light beam if active */}
         {isRamadan && (
           <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
@@ -1313,27 +1345,40 @@ ON CONFLICT (id) DO UPDATE SET
                             </div>
                           </div>
 
-                          {!isBanned ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Purge / Delete All Messages for this user */}
                             <button
                               type="button"
-                              onClick={() => {
-                                setBanEmailInput(u.email);
-                                setBanNameInput(u.name);
-                                setActiveSubTab('banned');
-                              }}
-                              className="px-3 py-1 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+                              onClick={() => handlePurgeUserComments(u.email, u.name)}
+                              className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                              title={isAr ? `مسح كافة تعليقات ورسائل ${u.name}` : `Delete all comments for ${u.name}`}
                             >
-                              {isAr ? 'حظر هذا المستخدم' : 'Ban User'}
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span className="hidden xs:inline">{isAr ? 'مسح تعليقاته' : 'Delete All Messages'}</span>
                             </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleUnbanUser(u.email)}
-                              className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
-                            >
-                              {isAr ? 'إلغاء الحظر' : 'Unban'}
-                            </button>
-                          )}
+
+                            {!isBanned ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBanEmailInput(u.email);
+                                  setBanNameInput(u.name);
+                                  setActiveSubTab('banned');
+                                }}
+                                className="px-2.5 py-1 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                              >
+                                {isAr ? 'حظر' : 'Ban'}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleUnbanUser(u.email)}
+                                className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                              >
+                                {isAr ? 'إلغاء الحظر' : 'Unban'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -1543,5 +1588,6 @@ ON CONFLICT (id) DO UPDATE SET
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

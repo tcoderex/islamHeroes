@@ -296,3 +296,55 @@ export async function deleteCommentsByGuest(guestIdentifier: string): Promise<bo
   saveLocalComments(updatedComments);
   return true;
 }
+
+/**
+ * Deletes ALL comments for a specific user by email (Admin Purge user messages).
+ */
+export async function deleteCommentsByUserEmail(
+  userEmail: string,
+  guestId?: string,
+  userName?: string
+): Promise<boolean> {
+  const cleanEmail = userEmail.trim().toLowerCase();
+  const currentComments = await getComments();
+  const updatedComments = currentComments.filter(
+    (c) =>
+      c.userEmail?.toLowerCase() !== cleanEmail &&
+      (!guestId || c.guestId !== guestId) &&
+      (!userName || c.userName !== userName)
+  );
+  commentsCache = updatedComments;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      await supabase.from('character_comments').delete().or(`user_email.eq.${cleanEmail},userEmail.eq.${cleanEmail}`);
+    } catch {
+      // ignore
+    }
+
+    try {
+      await supabase.from('characters').upsert({
+        id: COMMENTS_STORE_ID,
+        name: 'System Comments Store',
+        picture: '',
+        rating: 0,
+        description: JSON.stringify(updatedComments),
+        updated_at: Date.now(),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    const { getStore } = await import('@netlify/blobs');
+    const store = getStore({ name: 'heroes-comments', consistency: 'strong' });
+    await store.setJSON('all-comments', updatedComments);
+  } catch {
+    // ignore
+  }
+
+  saveLocalComments(updatedComments);
+  return true;
+}

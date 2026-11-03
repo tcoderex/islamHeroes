@@ -366,13 +366,17 @@ export default function CharactersView({
   const isRamadan = theme === 'ramadan';
 
   const gridTopRef = useRef<HTMLDivElement>(null);
+  const isFirstPageRender = useRef(true);
   useEffect(() => {
-    gridTopRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isFirstPageRender.current) {
+      isFirstPageRender.current = false;
+      return;
+    }
+    gridTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [currentPage]);
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
-      <div ref={gridTopRef} />
       {/* 1. UNIFIED PROMINENT SEARCH BAR */}
       <div className="w-full max-w-3xl mx-auto">
         <div className="relative group">
@@ -1027,6 +1031,7 @@ export default function CharactersView({
       )}
 
       {/* 4. UNIFIED CHARACTERS GRID (CONNECTED TO SUPABASE) */}
+      <div ref={gridTopRef} />
       {isLoading ? (
         <div className="space-y-4">
           <div

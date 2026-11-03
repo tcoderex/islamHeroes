@@ -543,8 +543,13 @@ export default function HomePage() {
   const paginatedSearchCharacters = filteredSearchCharacters.slice(searchStartIndex, searchEndIndex);
 
   const searchGridTopRef = useRef<HTMLDivElement>(null);
+  const isFirstSearchRender = useRef(true);
   useEffect(() => {
-    searchGridTopRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isFirstSearchRender.current) {
+      isFirstSearchRender.current = false;
+      return;
+    }
+    searchGridTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [searchPage]);
 
   const isRamadan = theme === 'ramadan';
@@ -559,7 +564,6 @@ export default function HomePage() {
           : 'bg-[#f3f7fd] text-slate-800 selection:bg-[#0067c0]/15 selection:text-[#0067c0]'
       }`}
     >
-      <div ref={searchGridTopRef} />
       {/* Ambient background glow */}
       <div
         className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
@@ -1080,6 +1084,7 @@ export default function HomePage() {
             </div>
 
             {/* Character Cards Grid or Fast Database Loading Skeleton */}
+            <div ref={searchGridTopRef} />
             {isLoading ? (
               <div className="space-y-4">
                 <div

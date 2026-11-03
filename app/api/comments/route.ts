@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComments, addComment, deleteComment, deleteCommentsByGuest } from '@/lib/commentsStorage';
+import { getComments, addComment, deleteComment, deleteCommentsByGuest, deleteCommentsByUserEmail } from '@/lib/commentsStorage';
 import { isUserBanned } from '@/lib/bannedUsersStorage';
 
 export const dynamic = 'force-dynamic';
@@ -100,12 +100,22 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/comments?id=... or ?guestId=... - Admin delete
+// DELETE /api/comments?id=... or ?email=... or ?guestId=... - Admin delete
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     const guestId = searchParams.get('guestId');
+    const email = searchParams.get('email') || searchParams.get('userEmail');
+    const userName = searchParams.get('userName');
+
+    if (email) {
+      await deleteCommentsByUserEmail(email, guestId || undefined, userName || undefined);
+      return NextResponse.json(
+        { success: true, message: 'Successfully deleted all comments for user email' },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
 
     if (guestId) {
       await deleteCommentsByGuest(guestId);
@@ -124,7 +134,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: false, error: 'Comment ID or Guest ID parameter is required' },
+      { success: false, error: 'Comment ID, Email, or Guest ID parameter is required' },
       { status: 400 }
     );
   } catch {
