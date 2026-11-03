@@ -658,7 +658,7 @@ export default function HomePage() {
 
           {/* Right side: Google Profile / Login & Language Toggle */}
           <div className="flex items-center gap-2">
-            <GoogleAuthButton isAr={isAr} theme={theme} size="sm" compactHeader />
+            <GoogleAuthButton isAr={isAr} theme={theme} size="sm" compactHeader isAdmin={isAdmin} />
 
             <div
               className={`flex items-center p-0.5 rounded-xl border shadow-2xs ${

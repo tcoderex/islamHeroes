@@ -1,19 +1,20 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LogOut,
-  ShieldAlert,
   X,
   Check,
   Mail,
-  UserCheck,
-  User,
   Pencil,
   Loader2,
-  Trash2,
   CheckCircle2,
+  Lock,
+  Clock,
+  Crown,
+  AlertCircle,
+  Calendar,
 } from 'lucide-react';
 import {
   signInWithGoogleReal,
@@ -29,6 +30,7 @@ export interface GoogleUserProfile {
   name: string;
   picture: string;
   signedInAt: number;
+  lastDisplayNameChangeAt?: number;
 }
 
 interface GoogleAuthButtonProps {
@@ -37,7 +39,10 @@ interface GoogleAuthButtonProps {
   theme?: string;
   size?: 'sm' | 'md' | 'lg';
   compactHeader?: boolean;
+  isAdmin?: boolean;
 }
+
+const TWENTY_ONE_DAYS_MS = 21 * 24 * 60 * 60 * 1000; // 21 days in ms
 
 export default function GoogleAuthButton({
   onUserChange,
@@ -45,6 +50,7 @@ export default function GoogleAuthButton({
   theme = 'tgis',
   size = 'md',
   compactHeader = false,
+  isAdmin = false,
 }: GoogleAuthButtonProps) {
   const [user, setUser] = useState<GoogleUserProfile | null>(null);
   const [isBanned, setIsBanned] = useState(false);
@@ -53,26 +59,54 @@ export default function GoogleAuthButton({
   const [authError, setAuthError] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  const [avatarError, setAvatarError] = useState(false);
 
   // Profile Edit state
   const [editName, setEditName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
-  // Fallback modal inputs
-  const [isFallbackModalOpen, setIsFallbackModalOpen] = useState(false);
-  const [inputEmail, setInputEmail] = useState('');
-  const [inputName, setInputName] = useState('');
-  const [avatarError, setAvatarError] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Stable callback ref to decouple parent callback re-renders
   const onUserChangeRef = useRef(onUserChange);
   useEffect(() => {
     onUserChangeRef.current = onUserChange;
   }, [onUserChange]);
+
+  // Determine if current user has admin status (prop or admin email)
+  const isUserAdmin = useMemo(() => {
+    if (isAdmin) return true;
+    if (user?.email && user.email.toLowerCase() === 'tcoderex@gmail.com') return true;
+    return false;
+  }, [isAdmin, user]);
+
+  // Calculate 21-day cooldown parameters
+  const { isOnCooldown, remainingDays, remainingHours, nextChangeDate } = useMemo(() => {
+    if (isUserAdmin || !user?.lastDisplayNameChangeAt) {
+      return { isOnCooldown: false, remainingDays: 0, remainingHours: 0, nextChangeDate: null };
+    }
+
+    const lastChanged = user.lastDisplayNameChangeAt;
+    const nextAllowed = lastChanged + TWENTY_ONE_DAYS_MS;
+    const now = Date.now();
+
+    if (now < nextAllowed) {
+      const remainingMs = nextAllowed - now;
+      const days = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+      const hours = Math.ceil(remainingMs / (60 * 60 * 1000));
+      return {
+        isOnCooldown: true,
+        remainingDays: days,
+        remainingHours: hours,
+        nextChangeDate: new Date(nextAllowed),
+      };
+    }
+
+    return { isOnCooldown: false, remainingDays: 0, remainingHours: 0, nextChangeDate: null };
+  }, [isUserAdmin, user]);
 
   const checkBanStatus = useCallback(async (email: string, googleId?: string) => {
     try {
@@ -104,7 +138,8 @@ export default function GoogleAuthButton({
               prev.email === parsed.email &&
               prev.googleId === parsed.googleId &&
               prev.name === parsed.name &&
-              prev.picture === parsed.picture
+              prev.picture === parsed.picture &&
+              prev.lastDisplayNameChangeAt === parsed.lastDisplayNameChangeAt
             ) {
               return prev;
             }
@@ -126,11 +161,29 @@ export default function GoogleAuthButton({
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser && firebaseUser.email) {
         const cleanEmail = firebaseUser.email.toLowerCase();
-        const displayName =
-          firebaseUser.displayName ||
+
+        // Check if there is an already stored custom name and lastDisplayNameChangeAt in server DB
+        let existingName = firebaseUser.displayName || '';
+        let lastDisplayNameChangeAt: number | undefined;
+
+        try {
+          const userRes = await fetch(`/api/users?email=${encodeURIComponent(cleanEmail)}`);
+          const userData = await userRes.json();
+          if (userData.success && userData.user) {
+            if (userData.user.name) existingName = userData.user.name;
+            if (userData.user.lastDisplayNameChangeAt) {
+              lastDisplayNameChangeAt = userData.user.lastDisplayNameChangeAt;
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        const fallbackName =
           cleanEmail.split('@')[0].replace(/[._]/g, ' ');
         const formattedName =
-          displayName.charAt(0).toUpperCase() + displayName.slice(1);
+          existingName ||
+          fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1);
 
         const photo =
           firebaseUser.photoURL ||
@@ -142,6 +195,7 @@ export default function GoogleAuthButton({
           name: formattedName,
           picture: photo,
           signedInAt: Date.now(),
+          lastDisplayNameChangeAt,
         };
 
         setUser(profile);
@@ -188,7 +242,7 @@ export default function GoogleAuthButton({
     };
   }, [syncSession]);
 
-  // Trigger REAL Google OAuth Sign In via Firebase
+  // Trigger REAL Google OAuth Sign In via Firebase Popup
   const handleRealGoogleSignIn = async () => {
     setIsAuthenticating(true);
     setAuthError(null);
@@ -197,11 +251,27 @@ export default function GoogleAuthButton({
       const { user: fbUser } = await signInWithGoogleReal();
       if (fbUser && fbUser.email) {
         const cleanEmail = fbUser.email.toLowerCase();
-        const displayName =
-          fbUser.displayName ||
-          cleanEmail.split('@')[0].replace(/[._]/g, ' ');
+
+        // Check if there is already an existing saved display name and cooldown timestamp
+        let existingName = fbUser.displayName || '';
+        let lastDisplayNameChangeAt: number | undefined;
+
+        try {
+          const userRes = await fetch(`/api/users?email=${encodeURIComponent(cleanEmail)}`);
+          const userData = await userRes.json();
+          if (userData.success && userData.user) {
+            if (userData.user.name) existingName = userData.user.name;
+            if (userData.user.lastDisplayNameChangeAt) {
+              lastDisplayNameChangeAt = userData.user.lastDisplayNameChangeAt;
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        const fallbackName = cleanEmail.split('@')[0].replace(/[._]/g, ' ');
         const formattedName =
-          displayName.charAt(0).toUpperCase() + displayName.slice(1);
+          existingName || fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1);
 
         const photo =
           fbUser.photoURL ||
@@ -213,9 +283,10 @@ export default function GoogleAuthButton({
           name: formattedName,
           picture: photo,
           signedInAt: Date.now(),
+          lastDisplayNameChangeAt,
         };
 
-        // Register user to central database so admin can ban any account
+        // Register user to central database
         await fetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -230,100 +301,107 @@ export default function GoogleAuthButton({
       }
     } catch (err: any) {
       if (err?.code === 'auth/popup-closed-by-user') {
-        setAuthError(isAr ? 'تم إغلاق نافذة تسجيل الدخول' : 'Sign-in window closed');
+        setAuthError(isAr ? 'تم إغلاق نافذة تسجيل الدخول' : 'Sign-in popup was closed');
+      } else if (err?.code === 'auth/popup-blocked') {
+        setAuthError(
+          isAr
+            ? 'تم حظر النافذة المنبثقة بواسطة المتصفح. يرجى السماح بالنوافذ المنبثقة وإعادة المحاولة.'
+            : 'Popup blocked by browser. Please allow popups and try again.'
+        );
+      } else if (err?.code === 'auth/cancelled-popup-request') {
+        // Ignored duplicate popup click
       } else {
-        // Fallback option if popup blocked by browser
-        setInputEmail('tcoderex@gmail.com');
-        setInputName('Tcoder');
-        setIsFallbackModalOpen(true);
+        setAuthError(
+          isAr
+            ? 'تعذر إتمام الدخول بـ Google. يرجى المحاولة مرة أخرى.'
+            : 'Failed to connect Google account. Please try again.'
+        );
       }
+
+      // Auto-clear error after 6 seconds
+      setTimeout(() => {
+        setAuthError(null);
+      }, 6000);
     } finally {
       setIsAuthenticating(false);
     }
   };
 
-  // Fallback submit
-  const handleFallbackSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputEmail || !inputEmail.includes('@')) return;
-
-    setIsAuthenticating(true);
-    const cleanEmail = inputEmail.trim().toLowerCase();
-    const defaultName = cleanEmail.split('@')[0].replace(/[._]/g, ' ');
-    const formattedName =
-      defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
-    const finalName = inputName.trim() || formattedName || 'Google User';
-
-    const deterministicGoogleId = `google_user_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`;
-    const detectedPicture = `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`;
-
-    const googleUser: GoogleUserProfile = {
-      googleId: deterministicGoogleId,
-      email: cleanEmail,
-      name: finalName,
-      picture: detectedPicture,
-      signedInAt: Date.now(),
-    };
-
-    try {
-      await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(googleUser),
-      });
-    } catch {
-      // ignore
-    }
-
-    setUser(googleUser);
-    setEditName(googleUser.name);
-    localStorage.setItem('heroes_google_user', JSON.stringify(googleUser));
-    window.dispatchEvent(new Event('heroes_auth_change'));
-    await checkBanStatus(googleUser.email, googleUser.googleId);
-
-    setIsAuthenticating(false);
-    setIsFallbackModalOpen(false);
-  };
-
-  // Save updated profile display name
+  // Save updated profile display name with 21-day check
   const handleSaveProfileName = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !editName.trim()) return;
 
-    setIsSavingName(true);
+    setNameError(null);
     const newName = editName.trim();
 
-    try {
-      await updateDisplayNameReal(newName);
-    } catch {
-      // ignore
+    // 1. If non-admin and currently on cooldown, reject immediately
+    if (!isUserAdmin && isOnCooldown) {
+      setNameError(
+        isAr
+          ? `لا يمكن تغيير اسم العرض إلا مرة واحدة كل 21 يوماً. يمكنك تغييره بعد ${remainingDays} يوم.`
+          : `Display name can only be changed once every 21 days. Next change allowed in ${remainingDays} days.`
+      );
+      return;
     }
 
-    const updatedUser: GoogleUserProfile = {
-      ...user,
-      name: newName,
-    };
+    setIsSavingName(true);
 
     try {
-      await fetch('/api/users', {
+      // Call backend API with updateDisplayName flag
+      const res = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedUser),
+        body: JSON.stringify({
+          email: user.email,
+          name: newName,
+          updateDisplayName: true,
+          isAdmin: isUserAdmin,
+        }),
       });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setNameError(
+          data.error ||
+            (isAr
+              ? 'فشل تحديث اسم العرض بسبب فترة الانتظار (21 يوماً).'
+              : 'Failed to update name due to 21-day cooldown.')
+        );
+        setIsSavingName(false);
+        return;
+      }
+
+      // Also update Firebase profile if possible
+      try {
+        await updateDisplayNameReal(newName);
+      } catch {
+        // ignore
+      }
+
+      const updatedUser: GoogleUserProfile = {
+        ...user,
+        name: newName,
+        lastDisplayNameChangeAt: data.user?.lastDisplayNameChangeAt || Date.now(),
+      };
+
+      setUser(updatedUser);
+      localStorage.setItem('heroes_google_user', JSON.stringify(updatedUser));
+      window.dispatchEvent(new Event('heroes_auth_change'));
+
+      setSavedSuccess(true);
+      setTimeout(() => {
+        setSavedSuccess(false);
+        setIsProfileMenuOpen(false);
+      }, 900);
     } catch {
-      // ignore
+      setNameError(
+        isAr ? 'حدث خطأ أثناء حفظ الاسم. حاول ثانية' : 'Error saving display name. Please try again'
+      );
+    } finally {
+      setIsSavingName(false);
     }
-
-    setUser(updatedUser);
-    localStorage.setItem('heroes_google_user', JSON.stringify(updatedUser));
-    window.dispatchEvent(new Event('heroes_auth_change'));
-
-    setIsSavingName(false);
-    setSavedSuccess(true);
-    setTimeout(() => {
-      setSavedSuccess(false);
-      setIsProfileMenuOpen(false);
-    }, 600);
   };
 
   // Sign out
@@ -353,10 +431,12 @@ export default function GoogleAuthButton({
             type="button"
             onClick={() => {
               setSavedSuccess(false);
+              setNameError(null);
+              setEditName(user.name);
               setIsProfileMenuOpen(true);
             }}
             className="flex items-center gap-1.5 py-1 px-2.5 rounded-full border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#0c1825] hover:border-blue-400 dark:hover:border-blue-500 shadow-2xs font-sans transition-all cursor-pointer active:scale-95"
-            title={isAr ? 'عرض البروفايل وتعديل الاسم' : 'View Profile & Edit Name'}
+            title={isAr ? 'عرض البروفايل وتعديل الاسم' : 'View Profile & Settings'}
           >
             <div className="relative w-6 h-6 sm:w-7 sm:h-7 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-100 shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -376,6 +456,10 @@ export default function GoogleAuthButton({
             <span className="font-bold text-[11px] sm:text-xs text-slate-900 dark:text-slate-100 truncate max-w-[80px] xs:max-w-[110px] sm:max-w-[140px]">
               {user.name.split(' ')[0] || user.name}
             </span>
+
+            {isUserAdmin && (
+              <Crown className="w-3 h-3 text-amber-500 fill-amber-400 shrink-0" />
+            )}
 
             {isBanned && (
               <span className="px-1 py-0.2 rounded-full text-[8px] font-bold bg-rose-500 text-white shrink-0">
@@ -421,23 +505,23 @@ export default function GoogleAuthButton({
             <span className="whitespace-nowrap">
               {isAuthenticating
                 ? isAr
-                  ? 'جاري الدخول...'
-                  : 'Signing in...'
+                  ? 'جاري الربط مع Google...'
+                  : 'Connecting Google...'
                 : isAr
-                  ? 'دخول Google'
+                  ? 'دخول بحساب Google'
                   : 'Sign in with Google'}
             </span>
           </button>
 
           {authError && (
-            <span className="text-[10px] text-rose-500 font-semibold animate-pulse">
+            <span className="text-[10px] text-rose-500 font-semibold animate-pulse max-w-[200px] text-right">
               {authError}
             </span>
           )}
         </div>
       )}
 
-      {/* USER PROFILE MENU MODAL -> Rendered into document.body via Portal (Never trapped by header) */}
+      {/* USER PROFILE MODAL -> Portal to document.body, perfectly centered and responsive */}
       {isMounted && typeof document !== 'undefined' && isProfileMenuOpen && user && createPortal(
         <div
           dir={isAr ? 'rtl' : 'ltr'}
@@ -445,7 +529,7 @@ export default function GoogleAuthButton({
           onClick={() => setIsProfileMenuOpen(false)}
         >
           <div
-            className="relative w-full max-w-sm rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a1520] text-slate-900 dark:text-slate-100 shadow-2xl p-5 sm:p-6 space-y-4 font-sans text-left my-auto animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-md my-auto rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a1520] text-slate-900 dark:text-slate-100 shadow-2xl p-5 sm:p-6 space-y-4 font-sans text-left animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -464,6 +548,12 @@ export default function GoogleAuthButton({
                 <div className="flex flex-col min-w-0">
                   <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
                     <span className="truncate">{user.name}</span>
+                    {isUserAdmin && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center gap-1 shrink-0">
+                        <Crown className="w-2.5 h-2.5 fill-amber-400" />
+                        <span>{isAr ? 'مشرف' : 'Admin'}</span>
+                      </span>
+                    )}
                     {isBanned && (
                       <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-500 text-white shrink-0">
                         {isAr ? 'محظور' : 'Banned'}
@@ -486,78 +576,184 @@ export default function GoogleAuthButton({
               </button>
             </div>
 
-            {/* Profile Settings Section */}
-            <form onSubmit={handleSaveProfileName} className="space-y-3">
+            {/* Display Name Edit Form with 21-Day Cooldown Policy */}
+            <form onSubmit={handleSaveProfileName} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {isAr ? 'اسم العرض في التعليقات (Display Name):' : 'Display Name (for comments):'}
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    {isAr ? 'اسم العرض في التعليقات:' : 'Display Name in Comments:'}
+                  </label>
+                  {isUserAdmin ? (
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Crown className="w-3 h-3 fill-amber-400" />
+                      {isAr ? 'تغيير غير محدود (مشرف)' : 'Unlimited (Admin)'}
+                    </span>
+                  ) : isOnCooldown ? (
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {isAr ? `متبقي ${remainingDays} يوم` : `${remainingDays}d left`}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      {isAr ? 'متاح للتغيير الآن' : 'Available now'}
+                    </span>
+                  )}
+                </div>
+
                 <div className="relative">
-                  <Pencil className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  {isOnCooldown ? (
+                    <Lock className="w-4 h-4 absolute left-3 top-3 text-amber-500" />
+                  ) : (
+                    <Pencil className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  )}
                   <input
                     type="text"
                     required
+                    disabled={isOnCooldown || isSavingName}
                     value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder={isAr ? 'أدخل اسمك الخاص...' : 'Enter your name...'}
-                    className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#060e18] text-slate-900 dark:text-white outline-none focus:border-[#0067c0]"
+                    onChange={(e) => {
+                      setEditName(e.target.value);
+                      setNameError(null);
+                    }}
+                    placeholder={isAr ? 'أدخل اسمك الخاص...' : 'Enter display name...'}
+                    className={`w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border outline-none transition-all ${
+                      isOnCooldown
+                        ? 'bg-amber-500/5 dark:bg-amber-950/20 border-amber-300/60 dark:border-amber-800/60 text-slate-600 dark:text-slate-300 cursor-not-allowed'
+                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#060e18] text-slate-900 dark:text-white focus:border-[#0067c0]'
+                    }`}
                   />
                 </div>
-                <span className="text-[10px] text-slate-400 block mt-1">
-                  {isAr ? 'هذا الاسم يظهر للآخرين عند إضافة تعليق' : 'This name appears publicly when you post comments'}
-                </span>
+
+                {/* 21-Day Cooldown Guidance Banner */}
+                {isOnCooldown ? (
+                  <div className="mt-2.5 p-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 space-y-1 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>
+                        {isAr
+                          ? 'قاعدة الـ 21 يوماً: تم قفل اسم العرض'
+                          : '21-Day Rule: Display name is locked'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+                      {isAr
+                        ? `يمكن تغيير اسم العرض مرة واحدة فقط كل 21 يوماً لحماية هويات المستخدمين. يمكنك تغيير اسمك مجدداً بعد ${remainingDays} يوم (${nextChangeDate ? nextChangeDate.toLocaleDateString() : ''}). المشرف فقط يمكنه التغيير في أي وقت.`
+                        : `Display name can only be changed once every 21 days to safeguard identities. You can change it again in ${remainingDays} days (${nextChangeDate ? nextChangeDate.toLocaleDateString() : ''}). Only administrators can change it anytime.`}
+                    </p>
+                  </div>
+                ) : isUserAdmin ? (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1 font-medium">
+                    <Crown className="w-3 h-3 fill-amber-400 shrink-0" />
+                    <span>
+                      {isAr
+                        ? 'بصفتك مشرفاً، يمكنك تغيير اسم العرض الخاص بك وحفظه متى شئت بلا قيد الـ 21 يوماً.'
+                        : 'As an administrator, you can change and update your display name anytime without the 21-day limit.'}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span>
+                      {isAr
+                        ? 'ملاحظة: عند حفظ الاسم الجديد، لن تتمكن من تغييره مجدداً إلا بعد 21 يوماً.'
+                        : 'Note: Once updated, you will not be able to change your name again for 21 days.'}
+                    </span>
+                  </p>
+                )}
+
+                {nameError && (
+                  <div className="mt-2 p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-300 text-xs flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{nameError}</span>
+                  </div>
+                )}
               </div>
 
+              {/* Submit Save Button */}
               <button
                 type="submit"
-                disabled={isSavingName || !editName.trim()}
-                className="w-full py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0067c0] hover:bg-[#005fb8] text-white transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                disabled={isOnCooldown || isSavingName || !editName.trim()}
+                className={`w-full py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 ${
+                  isOnCooldown
+                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                    : 'bg-[#0067c0] hover:bg-[#005fb8] text-white cursor-pointer active:scale-95 disabled:opacity-50'
+                }`}
               >
                 {isSavingName ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : savedSuccess ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                ) : isOnCooldown ? (
+                  <Lock className="w-4 h-4 text-slate-400" />
                 ) : (
                   <Check className="w-4 h-4" />
                 )}
                 <span>
                   {savedSuccess
-                    ? (isAr ? 'تم حفظ الاسم بنجاح!' : 'Name Saved!')
-                    : (isAr ? 'حفظ اسم العرض' : 'Save Display Name')}
+                    ? isAr
+                      ? 'تم حفظ الاسم بنجاح!'
+                      : 'Display Name Saved!'
+                    : isOnCooldown
+                      ? isAr
+                        ? `تغيير الاسم متاح بعد ${remainingDays} يوم`
+                        : `Available in ${remainingDays} days`
+                      : isAr
+                        ? 'حفظ اسم العرض'
+                        : 'Save Display Name'}
                 </span>
               </button>
             </form>
 
-            {/* Google Account Status Info */}
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-[#060e18] border border-slate-200/80 dark:border-slate-800 space-y-1.5 text-xs">
+            {/* Google Account Information Box */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#060e18] border border-slate-200/80 dark:border-slate-800 space-y-2 text-xs">
               <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 text-[11px]">
-                <span>{isAr ? 'حساب Google المتصل:' : 'Google Account:'}</span>
-                <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold truncate max-w-[170px]">
+                <span className="flex items-center gap-1">
+                  <Mail className="w-3 h-3 text-slate-400" />
+                  <span>{isAr ? 'حساب Google المتصل:' : 'Connected Google:'}</span>
+                </span>
+                <span className="font-mono text-slate-800 dark:text-slate-200 font-semibold truncate max-w-[170px]">
                   {user.email}
                 </span>
               </div>
-              <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 text-[11px] pt-1 border-t border-slate-200/60 dark:border-slate-800">
+
+              <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 text-[11px] pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-slate-400" />
+                  <span>{isAr ? 'آخر تعديل للاسم:' : 'Last Name Change:'}</span>
+                </span>
+                <span className="text-slate-700 dark:text-slate-300 font-medium">
+                  {user.lastDisplayNameChangeAt
+                    ? new Date(user.lastDisplayNameChangeAt).toLocaleDateString()
+                    : isAr
+                      ? 'لم يتم تغييره مسبقاً'
+                      : 'Never changed'}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 text-[11px] pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
                 <span>{isAr ? 'حالة الحساب:' : 'Account Status:'}</span>
                 <span
                   className={`font-bold flex items-center gap-1 ${
                     isBanned ? 'text-rose-600' : 'text-emerald-600'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${isBanned ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${isBanned ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                  />
                   <span>
                     {isBanned
                       ? isAr
                         ? 'محظور من التعليق'
                         : 'Banned from comments'
                       : isAr
-                        ? 'متصل ومفعل'
-                        : 'Connected & Verified'}
+                        ? 'متصل ومفعل بـ Google'
+                        : 'Connected via Google'}
                   </span>
                 </span>
               </div>
             </div>
 
-            {/* Disconnect / Sign Out Button */}
+            {/* Disconnect & Sign Out Button */}
             <button
               type="button"
               onClick={handleSignOut}
@@ -566,85 +762,6 @@ export default function GoogleAuthButton({
               <LogOut className="w-4 h-4" />
               <span>{isAr ? 'قطع الاتصال وتسجيل الخروج' : 'Disconnect & Sign Out'}</span>
             </button>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* FALLBACK SIGN IN MODAL -> Rendered into document.body via Portal */}
-      {isMounted && typeof document !== 'undefined' && isFallbackModalOpen && createPortal(
-        <div
-          dir={isAr ? 'rtl' : 'ltr'}
-          className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-4 sm:p-6 flex items-center justify-center animate-in fade-in duration-150"
-          onClick={() => setIsFallbackModalOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-sm sm:max-w-md my-auto rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a1520] text-slate-900 dark:text-slate-100 shadow-2xl p-5 space-y-4 font-sans text-left animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 flex items-center justify-center text-[#0067c0] dark:text-sky-400 shadow-2xs">
-                  <UserCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
-                    {isAr ? 'تسجيل الدخول بـ Google' : 'Google Account Sign In'}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {isAr ? 'إدخال بريدك الإلكتروني والاسم الشخصي' : 'Enter your Google email and display name'}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsFallbackModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleFallbackSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {isAr ? 'البريد الإلكتروني (Google Email):' : 'Google Email:'}
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-                  <input
-                    type="email"
-                    required
-                    value={inputEmail}
-                    onChange={(e) => setInputEmail(e.target.value)}
-                    placeholder="user@gmail.com"
-                    className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#060e18] text-slate-900 dark:text-white outline-none focus:border-[#0067c0]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {isAr ? 'الاسم الظاهر في التعليقات:' : 'Display Name:'}
-                </label>
-                <input
-                  type="text"
-                  value={inputName}
-                  onChange={(e) => setInputName(e.target.value)}
-                  placeholder={isAr ? 'مثال: أحمد علي' : 'e.g. Ahmed'}
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#060e18] text-slate-900 dark:text-white outline-none focus:border-[#0067c0]"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isAuthenticating || !inputEmail.trim()}
-                className="w-full py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0067c0] hover:bg-[#005fb8] text-white transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
-              >
-                {isAr ? 'تأكيد ودخول' : 'Confirm & Sign In'}
-              </button>
-            </form>
           </div>
         </div>,
         document.body

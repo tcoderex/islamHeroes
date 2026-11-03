@@ -28,6 +28,7 @@ import {
   Search,
   Trash2,
   Loader2,
+  Clock,
 } from 'lucide-react';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { AZHAR_SCHOLARS_TEMPLATE } from '@/lib/azhar-scholars-template';
@@ -1342,6 +1343,12 @@ ON CONFLICT (id) DO UPDATE SET
                               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
                                 {u.email}
                               </span>
+                              {u.lastDisplayNameChangeAt && (
+                                <span className="text-[9px] text-slate-400 dark:text-slate-500 flex items-center gap-1 font-sans">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  <span>{isAr ? 'تغيير الاسم:' : 'Name changed:'} {new Date(u.lastDisplayNameChangeAt).toLocaleDateString()}</span>
+                                </span>
+                              )}
                             </div>
                           </div>
 

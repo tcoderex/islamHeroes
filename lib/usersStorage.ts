@@ -9,6 +9,7 @@ export interface UserProfile {
   picture: string;
   signedInAt: number;
   lastActiveAt: number;
+  lastDisplayNameChangeAt?: number;
 }
 
 const USERS_DATA_FILE = path.join(process.cwd(), 'data', 'users.json');
@@ -70,6 +71,10 @@ export async function getUsers(): Promise<UserProfile[]> {
           picture: String(row.picture || ''),
           signedInAt: Number(row.signed_in_at || row.signedInAt) || Date.now(),
           lastActiveAt: Number(row.last_active_at || row.lastActiveAt) || Date.now(),
+          lastDisplayNameChangeAt:
+            row.last_display_name_change_at || row.lastDisplayNameChangeAt
+              ? Number(row.last_display_name_change_at || row.lastDisplayNameChangeAt)
+              : undefined,
         }));
         usersCache = mapped;
         return mapped;
@@ -120,22 +125,30 @@ export async function getUsers(): Promise<UserProfile[]> {
 
 /**
  * Registers or updates a SINGLE unique user profile based on email.
+ * Preserves existing lastDisplayNameChangeAt and custom name.
  */
-export async function registerOrUpdateUser(user: Omit<UserProfile, 'lastActiveAt'>): Promise<UserProfile> {
+export async function registerOrUpdateUser(
+  user: Partial<UserProfile> & { email: string }
+): Promise<UserProfile> {
   const cleanEmail = user.email.toLowerCase().trim();
-  // Deterministic Google ID based on email
-  const deterministicId = `google_user_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`;
+  const deterministicId = user.googleId || `google_user_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`;
+
+  const current = await getUsers();
+  const existing = current.find((u) => u.email === cleanEmail);
 
   const profile: UserProfile = {
     googleId: deterministicId,
     email: cleanEmail,
-    name: user.name.trim() || 'Google User',
-    picture: user.picture || `https://unavatar.io/${encodeURIComponent(cleanEmail)}`,
-    signedInAt: user.signedInAt || Date.now(),
+    name: user.name?.trim() || existing?.name || 'Google User',
+    picture: user.picture || existing?.picture || `https://unavatar.io/${encodeURIComponent(cleanEmail)}`,
+    signedInAt: user.signedInAt || existing?.signedInAt || Date.now(),
     lastActiveAt: Date.now(),
+    lastDisplayNameChangeAt:
+      user.lastDisplayNameChangeAt !== undefined
+        ? user.lastDisplayNameChangeAt
+        : existing?.lastDisplayNameChangeAt,
   };
 
-  const current = await getUsers();
   // Filter out any previous entry with same email or googleId so there's always ONLY ONE unique user!
   const updated = [profile, ...current.filter((u) => u.email !== cleanEmail && u.googleId !== deterministicId)];
   usersCache = updated;
@@ -179,4 +192,91 @@ export async function registerOrUpdateUser(user: Omit<UserProfile, 'lastActiveAt
 
   saveLocalUsers(updated);
   return profile;
+}
+
+/**
+ * Updates display name with 21-day cooldown check.
+ * Only admins (or tcoderex@gmail.com) can change anytime.
+ */
+export async function updateUserDisplayName(
+  email: string,
+  newName: string,
+  isAdmin: boolean = false
+): Promise<{ success: boolean; user?: UserProfile; error?: string; remainingDays?: number }> {
+  const cleanEmail = email.toLowerCase().trim();
+  const current = await getUsers();
+  const existing = current.find((u) => u.email === cleanEmail);
+  const now = Date.now();
+  const COOLDOWN_MS = 21 * 24 * 60 * 60 * 1000; // 21 days
+
+  const isUserAdmin = isAdmin || cleanEmail === 'tcoderex@gmail.com';
+
+  if (!isUserAdmin && existing?.lastDisplayNameChangeAt) {
+    const elapsed = now - existing.lastDisplayNameChangeAt;
+    if (elapsed < COOLDOWN_MS) {
+      const remainingMs = COOLDOWN_MS - elapsed;
+      const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+      return {
+        success: false,
+        error: `Display name can only be changed once every 21 days. You can change your name again in ${remainingDays} days.`,
+        remainingDays,
+      };
+    }
+  }
+
+  const updatedProfile: UserProfile = {
+    googleId: existing?.googleId || `google_user_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`,
+    email: cleanEmail,
+    name: newName.trim(),
+    picture: existing?.picture || `https://unavatar.io/${encodeURIComponent(cleanEmail)}`,
+    signedInAt: existing?.signedInAt || now,
+    lastActiveAt: now,
+    lastDisplayNameChangeAt: now,
+  };
+
+  const updatedList = [
+    updatedProfile,
+    ...current.filter((u) => u.email !== cleanEmail && u.googleId !== updatedProfile.googleId),
+  ];
+  usersCache = updatedList;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      await supabase.from('users').upsert({
+        google_id: updatedProfile.googleId,
+        email: updatedProfile.email,
+        name: updatedProfile.name,
+        picture: updatedProfile.picture,
+        signed_in_at: updatedProfile.signedInAt,
+        last_active_at: updatedProfile.lastActiveAt,
+      });
+    } catch {
+      // ignore
+    }
+
+    try {
+      await supabase.from('characters').upsert({
+        id: USERS_STORE_ID,
+        name: 'System Users Store',
+        picture: '',
+        rating: 0,
+        description: JSON.stringify(updatedList),
+        updated_at: Date.now(),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    const { getStore } = await import('@netlify/blobs');
+    const store = getStore({ name: 'heroes-[#0067c0]', consistency: 'strong' });
+    await store.setJSON('registered-users', updatedList);
+  } catch {
+    // ignore
+  }
+
+  saveLocalUsers(updatedList);
+  return { success: true, user: updatedProfile };
 }
