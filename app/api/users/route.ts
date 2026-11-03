@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
 
     // If request explicitly wants to update display name with 21-day cooldown check
     if (body.updateDisplayName && body.name) {
-      const result = await updateUserDisplayName(cleanEmail, body.name, Boolean(body.isAdmin));
+      const isUserAdmin = cleanEmail === 'tcoderex@gmail.com';
+      const result = await updateUserDisplayName(cleanEmail, body.name, isUserAdmin);
       if (!result.success) {
         return NextResponse.json(
           {

@@ -39,7 +39,6 @@ interface GoogleAuthButtonProps {
   theme?: string;
   size?: 'sm' | 'md' | 'lg';
   compactHeader?: boolean;
-  isAdmin?: boolean;
 }
 
 const TWENTY_ONE_DAYS_MS = 21 * 24 * 60 * 60 * 1000; // 21 days in ms
@@ -50,7 +49,6 @@ export default function GoogleAuthButton({
   theme = 'tgis',
   size = 'md',
   compactHeader = false,
-  isAdmin = false,
 }: GoogleAuthButtonProps) {
   const [user, setUser] = useState<GoogleUserProfile | null>(null);
   const [isBanned, setIsBanned] = useState(false);
@@ -76,12 +74,10 @@ export default function GoogleAuthButton({
     onUserChangeRef.current = onUserChange;
   }, [onUserChange]);
 
-  // Determine if current user has admin status (prop or admin email)
+  // ONLY tcoderex@gmail.com is EVER the admin! No other user can ever be admin.
   const isUserAdmin = useMemo(() => {
-    if (isAdmin) return true;
-    if (user?.email && user.email.toLowerCase() === 'tcoderex@gmail.com') return true;
-    return false;
-  }, [isAdmin, user]);
+    return Boolean(user?.email && user.email.toLowerCase().trim() === 'tcoderex@gmail.com');
+  }, [user]);
 
   // Calculate 21-day cooldown parameters
   const { isOnCooldown, remainingDays, remainingHours, nextChangeDate } = useMemo(() => {

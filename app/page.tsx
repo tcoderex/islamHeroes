@@ -34,7 +34,7 @@ import { AppTheme, THEMES } from '@/lib/theme';
 import { DEFAULT_CHARACTERS } from '@/lib/defaultCharacters';
 import { speakInArabic, stopArabicSpeech, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
-import GoogleAuthButton from '@/components/GoogleAuthButton';
+import GoogleAuthButton, { GoogleUserProfile } from '@/components/GoogleAuthButton';
 
 export type SortOption = 'rating-desc' | 'rating-asc' | 'name-asc' | 'name-desc';
 
@@ -60,6 +60,7 @@ export default function HomePage() {
   const isAr = lang === 'ar';
 
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [currentGoogleUser, setCurrentGoogleUser] = useState<GoogleUserProfile | null>(null);
   const [characters, setCharacters] = useState<CustomCharacter[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [dbStatus, setDbStatus] = useState<{
@@ -146,13 +147,48 @@ export default function HomePage() {
     });
   }, []);
 
+  // Update current user state and ensure only tcoderex@gmail.com can retain admin status
+  const handleUserChange = useCallback((u: GoogleUserProfile | null) => {
+    setCurrentGoogleUser(u);
+    const email = u?.email?.toLowerCase()?.trim() || '';
+    if (email !== 'tcoderex@gmail.com') {
+      setIsAdmin(false);
+      try {
+        localStorage.setItem('heroes_admin_active', 'false');
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
   // Restore client-persisted state safely post-hydration and sync with shared server API
   useEffect(() => {
     try {
-      const savedAdmin = localStorage.getItem('heroes_admin_active');
-      if (savedAdmin === 'true') {
-        setIsAdmin(true);
+      const savedUserStr = localStorage.getItem('heroes_google_user');
+      let savedUserEmail = '';
+      if (savedUserStr) {
+        try {
+          const parsed = JSON.parse(savedUserStr);
+          setCurrentGoogleUser(parsed);
+          savedUserEmail = parsed?.email?.toLowerCase()?.trim() || '';
+        } catch {
+          // ignore
+        }
       }
+
+      const savedAdmin = localStorage.getItem('heroes_admin_active');
+      // Strictly ONLY tcoderex@gmail.com can have admin active
+      if (savedAdmin === 'true' && savedUserEmail === 'tcoderex@gmail.com') {
+        setIsAdmin(true);
+      } else {
+        setIsAdmin(false);
+        try {
+          localStorage.setItem('heroes_admin_active', 'false');
+        } catch {
+          // ignore
+        }
+      }
+
       const savedTheme = localStorage.getItem('heroes_app_theme');
       if (savedTheme === 'tgis' || savedTheme === 'ramadan') {
         setTheme(savedTheme);
@@ -182,7 +218,7 @@ export default function HomePage() {
     }, 2400);
   };
 
-  // Toggle Admin on/off when passcode 0001 is entered
+  // Toggle Admin on/off when passcode 0001 is entered - strictly for tcoderex@gmail.com
   const handleAdminToggle = () => {
     if (isAdmin) {
       setIsAdmin(false);
@@ -193,20 +229,40 @@ export default function HomePage() {
         // ignore
       }
       showToast(isAr ? 'تم تعطيل وضع الإدارة بنجاح' : 'Admin mode disabled successfully');
-    } else {
-      setIsAdmin(true);
-      setActiveTab('characters');
-      try {
-        localStorage.setItem('heroes_admin_active', 'true');
-      } catch {
-        // ignore
-      }
-      showToast(isAr ? 'تم تفعيل وضع الإدارة بنجاح' : 'Admin mode unlocked successfully');
+      return;
     }
+
+    const email = currentGoogleUser?.email?.toLowerCase()?.trim() || '';
+    if (email !== 'tcoderex@gmail.com') {
+      showToast(
+        isAr
+          ? 'عذراً: وضع الإدارة مخصص حصرياً للمشرف (tcoderex@gmail.com)'
+          : 'Access denied: Admin privileges are strictly reserved for tcoderex@gmail.com'
+      );
+      return;
+    }
+
+    setIsAdmin(true);
+    setActiveTab('characters');
+    try {
+      localStorage.setItem('heroes_admin_active', 'true');
+    } catch {
+      // ignore
+    }
+    showToast(isAr ? 'تم تفعيل وضع الإدارة بنجاح' : 'Admin mode unlocked successfully');
   };
 
-  // Clicking the logo opens the passcode modal (0001)
+  // Clicking the logo opens the passcode modal (0001) - only permitted for tcoderex@gmail.com
   const handleLogoClick = () => {
+    const email = currentGoogleUser?.email?.toLowerCase()?.trim() || '';
+    if (email !== 'tcoderex@gmail.com') {
+      showToast(
+        isAr
+          ? 'المشرف الوحيد هو tcoderex@gmail.com. يرجى تسجيل الدخول بحساب المشرف'
+          : 'Only tcoderex@gmail.com is authorized as admin. Please sign in with the admin account.'
+      );
+      return;
+    }
     setIsAdminModalOpen(true);
   };
 
@@ -658,7 +714,7 @@ export default function HomePage() {
 
           {/* Right side: Google Profile / Login & Language Toggle */}
           <div className="flex items-center gap-2">
-            <GoogleAuthButton isAr={isAr} theme={theme} size="sm" compactHeader isAdmin={isAdmin} />
+            <GoogleAuthButton onUserChange={handleUserChange} isAr={isAr} theme={theme} size="sm" compactHeader />
 
             <div
               className={`flex items-center p-0.5 rounded-xl border shadow-2xs ${

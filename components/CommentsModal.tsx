@@ -403,7 +403,7 @@ export default function CommentsModal({
               </div>
             </div>
 
-            <GoogleAuthButton onUserChange={handleUserChange} isAr={isAr} theme={theme} size="sm" isAdmin={isAdmin} />
+            <GoogleAuthButton onUserChange={handleUserChange} isAr={isAr} theme={theme} size="sm" />
           </div>
 
           {/* Ban Warning if user is banned */}

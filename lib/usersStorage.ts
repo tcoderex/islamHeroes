@@ -209,7 +209,8 @@ export async function updateUserDisplayName(
   const now = Date.now();
   const COOLDOWN_MS = 21 * 24 * 60 * 60 * 1000; // 21 days
 
-  const isUserAdmin = isAdmin || cleanEmail === 'tcoderex@gmail.com';
+  // ONLY tcoderex@gmail.com is the admin
+  const isUserAdmin = cleanEmail === 'tcoderex@gmail.com';
 
   if (!isUserAdmin && existing?.lastDisplayNameChangeAt) {
     const elapsed = now - existing.lastDisplayNameChangeAt;
