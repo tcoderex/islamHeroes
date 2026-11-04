@@ -154,63 +154,88 @@ export default function GoogleAuthButton({
 
   // Listen for real Firebase Auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser && firebaseUser.email) {
-        const cleanEmail = firebaseUser.email.toLowerCase();
+    if (!auth || !auth.app) return;
+    let unsubscribe: (() => void) | null = null;
+    try {
+      unsubscribe = onAuthStateChanged(
+        auth,
+        async (firebaseUser) => {
+          try {
+            if (firebaseUser && firebaseUser.email) {
+              const cleanEmail = firebaseUser.email.toLowerCase();
 
-        // Check if there is an already stored custom name and lastDisplayNameChangeAt in server DB
-        let existingName = firebaseUser.displayName || '';
-        let lastDisplayNameChangeAt: number | undefined;
+              // Check if there is an already stored custom name and lastDisplayNameChangeAt in server DB
+              let existingName = firebaseUser.displayName || '';
+              let lastDisplayNameChangeAt: number | undefined;
 
-        try {
-          const userRes = await fetch(`/api/users?email=${encodeURIComponent(cleanEmail)}`);
-          const userData = await userRes.json();
-          if (userData.success && userData.user) {
-            if (userData.user.name) existingName = userData.user.name;
-            if (userData.user.lastDisplayNameChangeAt) {
-              lastDisplayNameChangeAt = userData.user.lastDisplayNameChangeAt;
+              try {
+                const userRes = await fetch(`/api/users?email=${encodeURIComponent(cleanEmail)}`);
+                const userData = await userRes.json();
+                if (userData.success && userData.user) {
+                  if (userData.user.name) existingName = userData.user.name;
+                  if (userData.user.lastDisplayNameChangeAt) {
+                    lastDisplayNameChangeAt = userData.user.lastDisplayNameChangeAt;
+                  }
+                }
+              } catch {
+                // ignore
+              }
+
+              const fallbackName =
+                cleanEmail.split('@')[0].replace(/[._]/g, ' ');
+              const formattedName =
+                existingName ||
+                fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1);
+
+              const photo =
+                firebaseUser.photoURL ||
+                `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`;
+
+              const profile: GoogleUserProfile = {
+                googleId: firebaseUser.uid || `google_user_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`,
+                email: cleanEmail,
+                name: formattedName,
+                picture: photo,
+                signedInAt: Date.now(),
+                lastDisplayNameChangeAt,
+              };
+
+              setUser(profile);
+              setEditName(profile.name);
+              try {
+                localStorage.setItem('heroes_google_user', JSON.stringify(profile));
+                await fetch('/api/users', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(profile),
+                });
+              } catch {
+                // ignore
+              }
+              checkBanStatus(profile.email, profile.googleId);
             }
+          } catch (e) {
+            console.warn('Error processing auth state change:', e);
           }
-        } catch {
-          // ignore
+        },
+        (error) => {
+          // Provide error handler so Firebase does not throw unhandled exception to window.onerror
+          console.warn('Firebase Auth state error:', error);
         }
+      );
+    } catch (err) {
+      console.warn('Failed to subscribe to auth state:', err);
+    }
 
-        const fallbackName =
-          cleanEmail.split('@')[0].replace(/[._]/g, ' ');
-        const formattedName =
-          existingName ||
-          fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1);
-
-        const photo =
-          firebaseUser.photoURL ||
-          `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`;
-
-        const profile: GoogleUserProfile = {
-          googleId: firebaseUser.uid || `google_user_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`,
-          email: cleanEmail,
-          name: formattedName,
-          picture: photo,
-          signedInAt: Date.now(),
-          lastDisplayNameChangeAt,
-        };
-
-        setUser(profile);
-        setEditName(profile.name);
+    return () => {
+      if (unsubscribe) {
         try {
-          localStorage.setItem('heroes_google_user', JSON.stringify(profile));
-          await fetch('/api/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(profile),
-          });
+          unsubscribe();
         } catch {
           // ignore
         }
-        checkBanStatus(profile.email, profile.googleId);
       }
-    });
-
-    return () => unsubscribe();
+    };
   }, [checkBanStatus]);
 
   // Notify parent component safely after render whenever user state updates

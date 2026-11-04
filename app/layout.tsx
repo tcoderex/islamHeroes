@@ -30,6 +30,29 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={fontSans.variable}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                if (typeof window === 'undefined') return;
+                window.addEventListener('error', function(event) {
+                  if (event && (event.message === 'Script error.' || (!event.filename && !event.lineno))) {
+                    event.preventDefault();
+                    return true;
+                  }
+                }, true);
+                window.addEventListener('unhandledrejection', function(event) {
+                  if (event && event.reason && (event.reason.message === 'Script error.' || String(event.reason).includes('Script error'))) {
+                    event.preventDefault();
+                    return true;
+                  }
+                });
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="antialiased selection:bg-[#0067c0]/15 selection:text-[#0067c0] min-h-screen text-slate-800" suppressHydrationWarning>
         {children}
       </body>
