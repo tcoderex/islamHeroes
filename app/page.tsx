@@ -20,6 +20,7 @@ import {
   Move,
   Loader2,
   MessageSquare,
+  Award,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal from '@/components/AdminSettingsModal';
@@ -29,6 +30,9 @@ import RepositionPictureModal from '@/components/RepositionPictureModal';
 import CommentsModal from '@/components/CommentsModal';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
+import Super3DBadge from '@/components/Super3DBadge';
+import BadgePickerModal from '@/components/BadgePickerModal';
+import BadgeInfoModal from '@/components/BadgeInfoModal';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { DEFAULT_CHARACTERS } from '@/lib/defaultCharacters';
@@ -47,6 +51,8 @@ export default function HomePage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [previewCharacter, setPreviewCharacter] = useState<PreviewableCharacter | null>(null);
   const [repositioningChar, setRepositioningChar] = useState<CustomCharacter | null>(null);
+  const [badgePickerChar, setBadgePickerChar] = useState<CustomCharacter | null>(null);
+  const [badgeInfoChar, setBadgeInfoChar] = useState<CustomCharacter | null>(null);
   const [activeCommentsChar, setActiveCommentsChar] = useState<CustomCharacter | null>(null);
   const [commentsCounts, setCommentsCounts] = useState<Record<string, number>>({});
 
@@ -1320,9 +1326,35 @@ export default function HomePage() {
                               >
                                 <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => setBadgePickerChar(char)}
+                                className="p-1 sm:p-1.5 rounded-xl text-emerald-400 hover:text-emerald-100 hover:bg-emerald-500/30 transition-all cursor-pointer"
+                                title={isAr ? 'اختيار شارة إسلامية (30 شارة)' : 'Choose Islamic badge (30 badges)'}
+                              >
+                                <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              </button>
                             </div>
                           )}
                         </div>
+
+                        {/* Bottom-left: Super 3D Animated Islamic Honor Badge */}
+                        {char.badgeId && (
+                          <Super3DBadge
+                            badgeId={char.badgeId}
+                            isAr={isAr}
+                            size="lg"
+                            className="absolute bottom-3 left-3 sm:bottom-3.5 sm:left-3.5 z-20 animate-[badge-float_4s_ease-in-out_infinite]"
+                            isAdmin={isAdmin}
+                            onClick={() => {
+                              if (isAdmin) {
+                                setBadgePickerChar(char);
+                              } else {
+                                setBadgeInfoChar(char);
+                              }
+                            }}
+                          />
+                        )}
                       </div>
 
                       {/* Card Content */}
@@ -1554,6 +1586,13 @@ export default function HomePage() {
         character={previewCharacter}
         onClose={() => setPreviewCharacter(null)}
         isAr={isAr}
+        isAdmin={isAdmin}
+        onOpenBadgePicker={(c) => {
+          const full = characters.find((ch) => ch.id === c.id);
+          if (full) {
+            setBadgePickerChar(full);
+          }
+        }}
         onOpenComments={(c) => {
           const full = characters.find((ch) => ch.id === c.id);
           if (full) {
@@ -1588,6 +1627,39 @@ export default function HomePage() {
         onCommentsUpdated={handleCommentsUpdated}
         onShowToast={showToast}
       />
+
+      {/* 30 Islamic Honor Badges Modal (Admin) */}
+      <BadgePickerModal
+        character={badgePickerChar}
+        isOpen={Boolean(badgePickerChar)}
+        onClose={() => setBadgePickerChar(null)}
+        onSelectBadge={(charId, badgeId) => {
+          const target = characters.find((c) => c.id === charId);
+          if (target) {
+            handleUpdateCharacter({ ...target, badgeId: badgeId || undefined });
+          }
+        }}
+        isAr={isAr}
+      />
+
+      {/* 3D Badge Information Modal (When clicked by users or preview) */}
+      {badgeInfoChar && badgeInfoChar.badgeId && (
+        <BadgeInfoModal
+          isOpen={Boolean(badgeInfoChar)}
+          onClose={() => setBadgeInfoChar(null)}
+          badgeId={badgeInfoChar.badgeId}
+          characterName={getLocalizedCharacterName(badgeInfoChar.name, isAr)}
+          characterPicture={badgeInfoChar.picture}
+          characterRating={badgeInfoChar.rating}
+          isAr={isAr}
+          isAdmin={isAdmin}
+          onOpenPicker={() => {
+            const target = badgeInfoChar;
+            setBadgeInfoChar(null);
+            setBadgePickerChar(target);
+          }}
+        />
+      )}
     </div>
   );
 }

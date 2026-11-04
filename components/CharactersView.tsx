@@ -20,12 +20,16 @@ import {
   Loader2,
   Sliders,
   MessageSquare,
+  Award,
 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme } from '@/lib/theme';
 import HonorBadge from './HonorBadge';
 import GlowingScoreBadge from './GlowingScoreBadge';
 import RepositionPictureModal from './RepositionPictureModal';
+import Super3DBadge from './Super3DBadge';
+import BadgePickerModal from './BadgePickerModal';
+import BadgeInfoModal from './BadgeInfoModal';
 import { convertNameToArabic, speakInArabic, stopArabicSpeech, hasArabicCharacters, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
 
@@ -37,6 +41,7 @@ export interface CustomCharacter {
   description?: string; // Optional small description
   updatedAt?: number;
   imagePosition?: string; // CSS object-position, e.g. "50% 65%" or "center top"
+  badgeId?: string;
 }
 
 interface CharactersViewProps {
@@ -91,6 +96,8 @@ export default function CharactersView({
   const [rating, setRating] = useState<number>(850);
   const [formImagePosition, setFormImagePosition] = useState<string>('50% 20%');
   const [repositioningChar, setRepositioningChar] = useState<CustomCharacter | null>(null);
+  const [badgePickerChar, setBadgePickerChar] = useState<CustomCharacter | null>(null);
+  const [badgeInfoChar, setBadgeInfoChar] = useState<CustomCharacter | null>(null);
   const [imgErrorMap, setImgErrorMap] = useState<Record<string, boolean>>({});
   const [isUploading, setIsUploading] = useState(false);
   const [isSpeakingName, setIsSpeakingName] = useState<string | null>(null);
@@ -1213,6 +1220,14 @@ export default function CharactersView({
                       <div className="flex items-center gap-1 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-2xl border border-white/20 text-white shadow-lg">
                         <button
                           type="button"
+                          onClick={() => setBadgePickerChar(char)}
+                          className="p-1 sm:p-1.5 rounded-xl text-emerald-400 hover:text-emerald-100 hover:bg-emerald-500/30 transition-all cursor-pointer"
+                          title={isAr ? 'اختيار شارة إسلامية (30 شارة)' : 'Choose Islamic badge (30 badges)'}
+                        >
+                          <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleStartReposition(char)}
                           className="p-1 sm:p-1.5 rounded-xl text-amber-300 hover:text-amber-100 hover:bg-amber-500/30 transition-all cursor-pointer"
                           title={isAr ? 'تحريك وضبط موضع الصورة' : 'Reposition picture'}
@@ -1238,6 +1253,24 @@ export default function CharactersView({
                       </div>
                     )}
                   </div>
+
+                  {/* 3. ON PICTURE BOTTOM-LEFT: Super 3D Animated Islamic Honor Badge */}
+                  {char.badgeId && (
+                    <Super3DBadge
+                      badgeId={char.badgeId}
+                      isAr={isAr}
+                      size="lg"
+                      className="absolute bottom-3 left-3 sm:bottom-3.5 sm:left-3.5 z-20 animate-[badge-float_4s_ease-in-out_infinite]"
+                      isAdmin={isAdmin}
+                      onClick={() => {
+                        if (isAdmin) {
+                          setBadgePickerChar(char);
+                        } else {
+                          setBadgeInfoChar(char);
+                        }
+                      }}
+                    />
+                  )}
                 </div>
 
                 {/* Character Details: Name, Description, and Tier */}
@@ -1417,6 +1450,39 @@ export default function CharactersView({
         isAr={isAr}
         theme={theme}
       />
+
+      {/* 30 Islamic Badges Picker Modal */}
+      <BadgePickerModal
+        character={badgePickerChar}
+        isOpen={Boolean(badgePickerChar)}
+        onClose={() => setBadgePickerChar(null)}
+        onSelectBadge={(charId, badgeId) => {
+          const target = characters.find((c) => c.id === charId);
+          if (target && onUpdateCharacter) {
+            onUpdateCharacter({ ...target, badgeId: badgeId || undefined });
+          }
+        }}
+        isAr={isAr}
+      />
+
+      {/* 3D Badge Information Modal (When clicked by users or preview) */}
+      {badgeInfoChar && badgeInfoChar.badgeId && (
+        <BadgeInfoModal
+          isOpen={Boolean(badgeInfoChar)}
+          onClose={() => setBadgeInfoChar(null)}
+          badgeId={badgeInfoChar.badgeId}
+          characterName={getLocalizedCharacterName(badgeInfoChar.name, isAr)}
+          characterPicture={badgeInfoChar.picture}
+          characterRating={badgeInfoChar.rating}
+          isAr={isAr}
+          isAdmin={isAdmin}
+          onOpenPicker={() => {
+            const target = badgeInfoChar;
+            setBadgeInfoChar(null);
+            setBadgePickerChar(target);
+          }}
+        />
+      )}
     </div>
   );
 }

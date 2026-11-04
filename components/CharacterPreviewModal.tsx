@@ -5,6 +5,8 @@ import { X, Clock, Volume2, MessageSquare } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
+import Super3DBadge from '@/components/Super3DBadge';
+import BadgeInfoModal from '@/components/BadgeInfoModal';
 import { speakInArabic, stopArabicSpeech, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
 
@@ -18,6 +20,7 @@ export interface PreviewableCharacter {
   picture?: string;
   rating?: number; // -1000 to 1000
   imagePosition?: string;
+  badgeId?: string;
 }
 
 interface CharacterPreviewModalProps {
@@ -25,6 +28,8 @@ interface CharacterPreviewModalProps {
   onClose: () => void;
   isAr: boolean;
   onOpenComments?: (character: PreviewableCharacter) => void;
+  isAdmin?: boolean;
+  onOpenBadgePicker?: (character: PreviewableCharacter) => void;
 }
 
 export default function CharacterPreviewModal({
@@ -32,9 +37,12 @@ export default function CharacterPreviewModal({
   onClose,
   isAr,
   onOpenComments,
+  isAdmin = false,
+  onOpenBadgePicker,
 }: CharacterPreviewModalProps) {
   const [imgError, setImgError] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showBadgeInfo, setShowBadgeInfo] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -101,6 +109,18 @@ export default function CharacterPreviewModal({
             size="lg"
             className="absolute top-3 right-3 z-30"
           />
+
+          {/* Bottom-Left 3D Islamic Honor Badge */}
+          {character.badgeId && (
+            <Super3DBadge
+              badgeId={character.badgeId}
+              isAr={isAr}
+              size="lg"
+              className="absolute bottom-3 left-3 z-30 animate-[badge-float_4s_ease-in-out_infinite]"
+              isAdmin={isAdmin}
+              onClick={() => setShowBadgeInfo(true)}
+            />
+          )}
 
           {character.picture && !imgError ? (
             <>
@@ -284,6 +304,28 @@ export default function CharacterPreviewModal({
           </div>
         </div>
       </div>
+
+      {/* 3D Badge Information Modal */}
+      {character.badgeId && (
+        <BadgeInfoModal
+          isOpen={showBadgeInfo}
+          onClose={() => setShowBadgeInfo(false)}
+          badgeId={character.badgeId}
+          characterName={displayName}
+          characterPicture={character.picture}
+          characterRating={character.rating}
+          isAr={isAr}
+          isAdmin={isAdmin}
+          onOpenPicker={
+            onOpenBadgePicker
+              ? () => {
+                  setShowBadgeInfo(false);
+                  onOpenBadgePicker(character);
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

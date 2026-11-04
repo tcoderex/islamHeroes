@@ -63,11 +63,19 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
           const mapped: SharedCharacter[] = validRows.map((row) => {
             let desc = row.description ? String(row.description) : undefined;
             let imgPos: string | undefined = row.image_position ? String(row.image_position) : undefined;
+            let badgeId: string | undefined = row.badge_id ? String(row.badge_id) : (row.badgeId ? String(row.badgeId) : undefined);
             if (desc) {
               const posMatch = desc.match(/\[\[pos:([^\]]+)\]\]/);
               if (posMatch) {
                 imgPos = posMatch[1].trim();
                 desc = desc.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').trim() || undefined;
+              }
+              if (desc) {
+                const badgeMatch = desc.match(/\[\[badge:([^\]]+)\]\]/);
+                if (badgeMatch) {
+                  badgeId = badgeMatch[1].trim();
+                  desc = desc.replace(/\s*\[\[badge:[^\]]+\]\]/g, '').trim() || undefined;
+                }
               }
             }
             return {
@@ -77,6 +85,7 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
               rating: Number(row.rating) || 0,
               description: desc,
               imagePosition: imgPos,
+              badgeId,
               updatedAt: row.updated_at ? Number(row.updated_at) : Date.now(),
             };
           });
@@ -86,9 +95,14 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
         } else {
           // Auto-seed Supabase characters table with seed data
           const payload = seed.map((c) => {
-            let desc = c.description ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').trim() : '';
+            let desc = c.description
+              ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').replace(/\s*\[\[badge:[^\]]+\]\]/g, '').trim()
+              : '';
             if (c.imagePosition) {
               desc = desc ? `${desc} [[pos:${c.imagePosition}]]` : `[[pos:${c.imagePosition}]]`;
+            }
+            if (c.badgeId) {
+              desc = desc ? `${desc} [[badge:${c.badgeId}]]` : `[[badge:${c.badgeId}]]`;
             }
             return {
               id: c.id,
@@ -164,9 +178,14 @@ export async function saveSharedCharacters(characters: SharedCharacter[]): Promi
   if (supabase) {
     try {
       const payload = characters.map((c) => {
-        let desc = c.description ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').trim() : '';
+        let desc = c.description
+          ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').replace(/\s*\[\[badge:[^\]]+\]\]/g, '').trim()
+          : '';
         if (c.imagePosition) {
           desc = desc ? `${desc} [[pos:${c.imagePosition}]]` : `[[pos:${c.imagePosition}]]`;
+        }
+        if (c.badgeId) {
+          desc = desc ? `${desc} [[badge:${c.badgeId}]]` : `[[badge:${c.badgeId}]]`;
         }
         return {
           id: c.id,

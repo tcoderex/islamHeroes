@@ -6,6 +6,7 @@ export interface CharacterData {
   description?: string;
   updatedAt?: number;
   imagePosition?: string;
+  badgeId?: string;
 }
 
 export const DEFAULT_CHARACTERS: CharacterData[] = [

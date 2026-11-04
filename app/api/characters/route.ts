@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
         rating: Math.max(-1000, Math.min(1000, Number(item.rating) || 0)),
         description: item.description,
         imagePosition: item.imagePosition,
+        badgeId: item.badgeId,
         updatedAt: Date.now(),
       }));
 
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Case 2: Single character addition
-    const { name, picture, rating, description, imagePosition } = body;
+    const { name, picture, rating, description, imagePosition, badgeId } = body;
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
     }
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
       rating: Math.max(-1000, Math.min(1000, Number(rating) || 0)),
       description: typeof description === 'string' ? description.trim() : undefined,
       imagePosition: typeof imagePosition === 'string' ? imagePosition.trim() : undefined,
+      badgeId: typeof badgeId === 'string' ? badgeId.trim() : undefined,
       updatedAt: Date.now(),
     };
 
@@ -99,7 +101,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, picture, rating, description, imagePosition } = body;
+    const { id, name, picture, rating, description, imagePosition, badgeId } = body;
 
     if (!id || typeof id !== 'string') {
       return NextResponse.json({ success: false, error: 'Character ID is required' }, { status: 400 });
@@ -119,6 +121,7 @@ export async function PUT(req: NextRequest) {
       rating: rating !== undefined ? Math.max(-1000, Math.min(1000, Number(rating))) : current[index].rating,
       description: typeof description === 'string' ? description.trim() : current[index].description,
       imagePosition: typeof imagePosition === 'string' ? imagePosition.trim() : current[index].imagePosition,
+      badgeId: badgeId !== undefined ? (badgeId ? String(badgeId).trim() : undefined) : current[index].badgeId,
       updatedAt: Date.now(),
     };
 
