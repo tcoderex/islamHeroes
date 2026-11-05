@@ -9,17 +9,17 @@ const fontSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Heroes of the Islam',
-  description: 'Explore the noble lives, courage, and legacy of the heroes and great figures of Islam.',
+  title: 'islamheroes',
+  description: 'Explore the noble lives, courage, and legacy of the heroes and great figures of Islam on islamheroes.',
   openGraph: {
-    title: 'Heroes of the Islam',
-    description: 'Explore the noble lives, courage, and legacy of the heroes and great figures of Islam.',
+    title: 'islamheroes',
+    description: 'Explore the noble lives, courage, and legacy of the heroes and great figures of Islam on islamheroes.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Heroes of the Islam',
-    description: 'Explore the noble lives, courage, and legacy of the heroes and great figures of Islam.',
+    title: 'islamheroes',
+    description: 'Explore the noble lives, courage, and legacy of the heroes and great figures of Islam on islamheroes.',
   },
 };
 

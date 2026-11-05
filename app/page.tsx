@@ -21,6 +21,7 @@ import {
   Loader2,
   MessageSquare,
   Award,
+  Bell,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal from '@/components/AdminSettingsModal';
@@ -33,6 +34,8 @@ import GlowingScoreBadge from '@/components/GlowingScoreBadge';
 import Super3DBadge from '@/components/Super3DBadge';
 import BadgePickerModal from '@/components/BadgePickerModal';
 import BadgeInfoModal from '@/components/BadgeInfoModal';
+import NotificationsModal from '@/components/NotificationsModal';
+import { getSavedNotifications, pushNotification } from '@/lib/notifications';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { DEFAULT_CHARACTERS } from '@/lib/defaultCharacters';
@@ -55,6 +58,8 @@ export default function HomePage() {
   const [badgeInfoChar, setBadgeInfoChar] = useState<CustomCharacter | null>(null);
   const [activeCommentsChar, setActiveCommentsChar] = useState<CustomCharacter | null>(null);
   const [commentsCounts, setCommentsCounts] = useState<Record<string, number>>({});
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   // Search view state
   const [searchQuery, setSearchQuery] = useState('');
@@ -145,13 +150,104 @@ export default function HomePage() {
     }
   };
 
-  // Stable callback for updating comments count to prevent unnecessary re-renders
-  const handleCommentsUpdated = useCallback((charId: string, newCount: number) => {
-    setCommentsCounts((prev) => {
-      if (prev[charId] === newCount) return prev;
-      return { ...prev, [charId]: newCount };
-    });
+  // Sync unread notification count
+  useEffect(() => {
+    const updateCount = () => {
+      const items = getSavedNotifications();
+      setUnreadNotifCount(items.filter((n) => !n.read).length);
+    };
+    updateCount();
+    window.addEventListener('islamheroes_notifications_change', updateCount);
+    window.addEventListener('storage', updateCount);
+    return () => {
+      window.removeEventListener('islamheroes_notifications_change', updateCount);
+      window.removeEventListener('storage', updateCount);
+    };
   }, []);
+
+  // Exploration actions from notifications
+  const handleExploreCharacter = useCallback(
+    (identifier: string) => {
+      const found = characters.find(
+        (c) =>
+          c.id === identifier ||
+          c.name.toLowerCase() === identifier.toLowerCase() ||
+          c.name.toLowerCase().includes(identifier.toLowerCase()) ||
+          identifier.toLowerCase().includes(c.name.toLowerCase())
+      );
+      if (found) {
+        setPreviewCharacter(found);
+      } else {
+        setSearchQuery(identifier);
+        setActiveTab('search');
+      }
+    },
+    [characters]
+  );
+
+  const handleExploreBadge = useCallback(
+    (identifier: string, badgeId?: string) => {
+      const found = characters.find(
+        (c) =>
+          c.id === identifier ||
+          c.name.toLowerCase() === identifier.toLowerCase() ||
+          c.name.toLowerCase().includes(identifier.toLowerCase()) ||
+          identifier.toLowerCase().includes(c.name.toLowerCase())
+      );
+      if (found) {
+        if (badgeId || found.badgeId) {
+          setBadgeInfoChar({ ...found, badgeId: badgeId || found.badgeId });
+        } else {
+          setPreviewCharacter(found);
+        }
+      } else if (badgeId) {
+        const charWithBadge = characters.find((c) => c.badgeId === badgeId);
+        if (charWithBadge) {
+          setBadgeInfoChar(charWithBadge);
+        }
+      }
+    },
+    [characters]
+  );
+
+  const handleExploreComment = useCallback(
+    (identifier: string) => {
+      const found = characters.find(
+        (c) =>
+          c.id === identifier ||
+          c.name.toLowerCase() === identifier.toLowerCase() ||
+          c.name.toLowerCase().includes(identifier.toLowerCase()) ||
+          identifier.toLowerCase().includes(c.name.toLowerCase())
+      );
+      if (found) {
+        setActiveCommentsChar(found);
+      }
+    },
+    [characters]
+  );
+
+  // Stable callback for updating comments count to prevent unnecessary re-renders
+  const handleCommentsUpdated = useCallback(
+    (charId: string, newCount: number) => {
+      setCommentsCounts((prev) => {
+        if (prev[charId] === newCount) return prev;
+        return { ...prev, [charId]: newCount };
+      });
+      const target = characters.find((c) => c.id === charId);
+      if (target) {
+        pushNotification({
+          category: 'message',
+          titleAr: `💬 تعليق جديد على ${getLocalizedCharacterName(target.name, true)}`,
+          titleEn: `💬 New Comment on ${getLocalizedCharacterName(target.name, false)}`,
+          messageAr: `تمت إضافة مشاركة جديدة من أحد أعضاء مجتمع islamheroes.`,
+          messageEn: `A community member posted a new review/comment on this profile.`,
+          characterId: target.id,
+          characterName: target.name,
+        });
+      }
+    },
+    [characters]
+  );
 
   // Update current user state and ensure only tcoderex@gmail.com can retain admin status
   const handleUserChange = useCallback((u: GoogleUserProfile | null) => {
@@ -292,6 +388,14 @@ export default function HomePage() {
             ? 'تمت إضافة الشخصية بنجاح إلى قاعدة بيانات Supabase'
             : 'Character added to shared Supabase database'
         );
+        pushNotification({
+          category: 'character',
+          titleEn: `👤 New Character Added: ${newChar.name}`,
+          titleAr: `👤 شخصية جديدة أضيفت: ${newChar.name}`,
+          messageEn: `A new Islamic figure "${newChar.name}" (${newChar.rating}) has been added to islamheroes. Tap to explore!`,
+          messageAr: `تمت إضافة شخصية إسلامية جديدة "${newChar.name}" (${newChar.rating}) إلى islamheroes. انقر للاستكشاف!`,
+          characterName: newChar.name,
+        });
         return;
       }
     } catch {
@@ -310,6 +414,14 @@ export default function HomePage() {
       // ignore
     }
     showToast(isAr ? 'تمت إضافة الشخصية بنجاح' : 'Character added successfully');
+    pushNotification({
+      category: 'character',
+      titleEn: `👤 New Character Added: ${newChar.name}`,
+      titleAr: `👤 شخصية جديدة أضيفت: ${newChar.name}`,
+      messageEn: `A new Islamic figure "${newChar.name}" (${newChar.rating}) has been added to islamheroes. Tap to explore!`,
+      messageAr: `تمت إضافة شخصية إسلامية جديدة "${newChar.name}" (${newChar.rating}) إلى islamheroes. انقر للاستكشاف!`,
+      characterName: newChar.name,
+    });
   };
 
   const handleUpdateCharacter = async (updatedChar: CustomCharacter) => {
@@ -448,6 +560,15 @@ export default function HomePage() {
         } catch {
           // ignore
         }
+        if (newChars.length > 0) {
+          pushNotification({
+            category: 'character',
+            titleEn: `📚 Batch Added: ${newChars.length} New Islamic Figures`,
+            titleAr: `📚 إضافة دفعة جديدة: ${newChars.length} من علماء وشخصيات الإسلام`,
+            messageEn: `Added ${newChars.length} distinguished Islamic figures to islamheroes. Explore their inspiring legacy!`,
+            messageAr: `تمت إضافة ${newChars.length} من الشخصيات والعلماء الأجلاء إلى منصة islamheroes. استكشف سيرهم العطرة!`,
+          });
+        }
         return;
       }
     } catch {
@@ -459,6 +580,15 @@ export default function HomePage() {
       localStorage.setItem('heroes_custom_characters', JSON.stringify(updated));
     } catch {
       // ignore
+    }
+    if (newChars.length > 0) {
+      pushNotification({
+        category: 'character',
+        titleEn: `📚 Batch Added: ${newChars.length} New Islamic Figures`,
+        titleAr: `📚 إضافة دفعة جديدة: ${newChars.length} من علماء وشخصيات الإسلام`,
+        messageEn: `Added ${newChars.length} distinguished Islamic figures to islamheroes. Explore their inspiring legacy!`,
+        messageAr: `تمت إضافة ${newChars.length} من الشخصيات والعلماء الأجلاء إلى منصة islamheroes. استكشف سيرهم العطرة!`,
+      });
     }
   };
 
@@ -681,7 +811,7 @@ export default function HomePage() {
                   : 'bg-[#0067c0] text-white shadow-blue-500/25 group-hover:bg-[#005fb8]'
               }`}
             >
-              {isRamadan ? '🌙' : isAr ? 'إ' : 'HI'}
+              {isRamadan ? '🌙' : 'IH'}
               {isAdmin && (
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white animate-pulse" />
               )}
@@ -694,7 +824,7 @@ export default function HomePage() {
                     : 'text-slate-900 group-hover:text-[#0067c0]'
                 }`}
               >
-                {isAr ? 'أبطال الإسلام' : 'Heroes of the Islam'}
+                {isAr ? 'islamheroes · أبطال الإسلام' : 'islamheroes'}
               </span>
               {isAdmin && (
                 <span
@@ -718,9 +848,29 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Right side: Google Profile / Login & Language Toggle */}
+          {/* Right side: Google Profile / Login, Notification Center & Language Toggle */}
           <div className="flex items-center gap-2">
             <GoogleAuthButton onUserChange={handleUserChange} isAr={isAr} theme={theme} size="sm" compactHeader />
+
+            {/* Notification Bell Button */}
+            <button
+              type="button"
+              onClick={() => setIsNotificationsOpen(true)}
+              className={`relative p-2 rounded-xl border transition-all cursor-pointer shadow-2xs flex items-center justify-center active:scale-95 ${
+                isRamadan
+                  ? 'bg-[#0f1d2b] border-amber-500/30 text-amber-200 hover:bg-amber-500/20'
+                  : 'bg-white/95 border-slate-200/80 text-slate-700 hover:bg-slate-50 hover:text-[#0067c0]'
+              }`}
+              title={isAr ? 'مركز الأخبار والإشعارات (الأوسمة، الشخصيات، والرسائل)' : 'News & Activity Center'}
+              aria-label={isAr ? 'الإشعارات والأخبار' : 'Notifications & News'}
+            >
+              <Bell className="w-4 h-4" />
+              {unreadNotifCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white font-bold text-[10px] flex items-center justify-center ring-2 ring-white dark:ring-slate-900 animate-pulse shadow-xs">
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
+              )}
+            </button>
 
             <div
               className={`flex items-center p-0.5 rounded-xl border shadow-2xs ${
@@ -891,7 +1041,7 @@ export default function HomePage() {
                     : 'text-slate-900'
                 }`}
               >
-                {isAr ? 'أبطال الإسلام' : 'Heroes of the Islam'}
+                {isAr ? 'islamheroes · أبطال الإسلام' : 'islamheroes'}
               </h1>
               {/* Contact / Removal notice with stylish email preview button */}
               <div className="flex flex-col items-center justify-center gap-2 max-w-2xl mx-auto mt-2">
@@ -908,7 +1058,7 @@ export default function HomePage() {
                 <div className="inline-flex items-center gap-1.5 p-1 rounded-2xl backdrop-blur-md border shadow-xs transition-all hover:shadow-md">
                   <a
                     href={`https://mail.google.com/mail/?view=cm&fs=1&to=tcoderex@gmail.com&su=${encodeURIComponent(
-                      isAr ? 'أبطال الإسلام - طلب حذف أو استفسار' : 'Islam Heroes - Inquiry or Removal Request'
+                      isAr ? 'islamheroes - طلب حذف أو استفسار' : 'islamheroes - Inquiry or Removal Request'
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -1549,11 +1699,11 @@ export default function HomePage() {
         <p>
           {isAr
             ? isRamadan
-              ? 'أبطال الإسلام · نفحات رمضانية وسير وأمجاد الخالدين'
-              : 'أبطال الإسلام · سير وأمجاد'
+              ? 'islamheroes · نفحات رمضانية وسير وأمجاد الخالدين'
+              : 'islamheroes · أبطال وسير التاريخ الإسلامي'
             : isRamadan
-              ? 'Heroes of the Islam · Ramadan Mubarak Edition'
-              : 'Heroes of the Islam'}
+              ? 'islamheroes · Ramadan Mubarak Edition'
+              : 'islamheroes · All Rights Reserved'}
         </p>
       </footer>
 
@@ -1637,6 +1787,20 @@ export default function HomePage() {
           const target = characters.find((c) => c.id === charId);
           if (target) {
             handleUpdateCharacter({ ...target, badgeId: badgeId || undefined });
+            if (badgeId) {
+              const charNameEn = getLocalizedCharacterName(target.name, false);
+              const charNameAr = getLocalizedCharacterName(target.name, true);
+              pushNotification({
+                category: 'badge',
+                titleEn: `✨ New Badge Awarded: ${charNameEn}`,
+                titleAr: `✨ تم منح وسام جديد: ${charNameAr}`,
+                messageEn: `A special Islamic honor badge was awarded to ${charNameEn}. Tap to explore 3D badge details!`,
+                messageAr: `تم منح وسام شرف إسلامي مميز للرمز ${charNameAr}. انقر لمشاهدة تفاصيل الوسام ثلاثي الأبعاد!`,
+                characterId: target.id,
+                characterName: target.name,
+                badgeId: badgeId,
+              });
+            }
           }
         }}
         isAr={isAr}
@@ -1660,6 +1824,17 @@ export default function HomePage() {
           }}
         />
       )}
+
+      {/* Activity & News Explore Center Modal */}
+      <NotificationsModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        isAr={isAr}
+        onExploreCharacter={handleExploreCharacter}
+        onExploreBadge={handleExploreBadge}
+        onExploreComment={handleExploreComment}
+        isRamadan={isRamadan}
+      />
     </div>
   );
 }

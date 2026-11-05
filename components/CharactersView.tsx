@@ -494,7 +494,7 @@ export default function CharactersView({
                   isRamadan ? 'text-amber-300' : 'text-slate-900'
                 }`}
               >
-                {isAr ? 'أبطال وشخصيات الإسلام' : 'Heroes of Islam Figures'}
+                {isAr ? 'شخصيات islamheroes' : 'islamheroes Figures'}
               </h2>
 
               {/* Supabase Status Pill - Only shown when admin is active */}
