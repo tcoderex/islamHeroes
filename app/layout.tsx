@@ -52,6 +52,7 @@ export default function RootLayout({
             `,
           }}
         />
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
       </head>
       <body className="antialiased selection:bg-[#0067c0]/15 selection:text-[#0067c0] min-h-screen text-slate-800" suppressHydrationWarning>
         {children}

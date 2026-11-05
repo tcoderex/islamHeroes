@@ -54,6 +54,65 @@ export const signInWithGoogleReal = async (): Promise<{
   return { user: result.user, accessToken: token };
 };
 
+/**
+ * Direct Google Identity Services (GIS) Token Client fallback
+ * Works across domains and mobile browsers using Google's official GSI OAuth 2.0 endpoint
+ */
+export const signInWithGoogleGIS = (): Promise<{
+  email: string;
+  name: string;
+  picture: string;
+  sub: string;
+  accessToken: string;
+}> => {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      return reject(new Error('Window not available'));
+    }
+    const google = (window as any).google;
+    if (!google?.accounts?.oauth2) {
+      return reject(new Error('Google Identity Services not loaded'));
+    }
+
+    try {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: firebaseConfig.oAuthClientId,
+        scope: 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email openid',
+        callback: async (tokenResponse: any) => {
+          if (tokenResponse?.error) {
+            return reject(tokenResponse);
+          }
+          if (tokenResponse?.access_token) {
+            try {
+              const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+              });
+              const data = await res.json();
+              if (data && data.email) {
+                cachedAccessToken = tokenResponse.access_token;
+                return resolve({
+                  email: data.email,
+                  name: data.name || data.given_name || data.email.split('@')[0],
+                  picture: data.picture || '',
+                  sub: data.sub || '',
+                  accessToken: tokenResponse.access_token,
+                });
+              }
+            } catch (fetchErr) {
+              return reject(fetchErr);
+            }
+          }
+          reject(new Error('No access token received'));
+        },
+      });
+
+      client.requestAccessToken({ prompt: 'select_account' });
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
 export const signOutReal = async (): Promise<void> => {
   if (auth?.app) {
     try {
