@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getSupabase } from '@/lib/supabase';
-import { AZHAR_SCHOLARS_TEMPLATE, getAzharScholarComments } from './azhar-scholars-template';
+import { AZHAR_SCHOLARS_TEMPLATE } from './azhar-scholars-template';
+import { generateDiverseCommentsForCharacter } from './characterCommentsSeed';
 
 export interface CharacterComment {
   id: string;
@@ -135,8 +136,8 @@ export async function getComments(characterId?: string): Promise<CharacterCommen
     commentsCache = loadLocalComments();
   }
 
-  // Auto-seed Azhar scholars 3+ Arabic fake user negative comments (< 0) if missing
-  commentsCache = ensureAzharSeedComments(commentsCache, characterId);
+  // Auto-seed diverse Arabic community comments (positive, balanced, critical) if empty
+  commentsCache = ensureDiverseDefaultSeedComments(commentsCache, characterId);
 
   if (characterId) {
     return commentsCache.filter((c) => c.characterId === characterId);
@@ -144,41 +145,26 @@ export async function getComments(characterId?: string): Promise<CharacterCommen
   return commentsCache;
 }
 
-function ensureAzharSeedComments(existingComments: CharacterComment[], requestedCharacterId?: string): CharacterComment[] {
+function ensureDiverseDefaultSeedComments(
+  existingComments: CharacterComment[],
+  requestedCharacterId?: string
+): CharacterComment[] {
   const list = [...existingComments];
   const existingCharIds = new Set(list.map((c) => c.characterId));
 
-  // 1. Seed for all 10 default template scholars if missing
+  // Seed default Azhar template scholars if missing with diverse comments
   AZHAR_SCHOLARS_TEMPLATE.forEach((scholar) => {
     if (!existingCharIds.has(scholar.id)) {
-      const seeds = getAzharScholarComments(scholar.id, scholar.name);
-      seeds.forEach((s, idx) => {
-        list.push({
-          id: `azhar-seed-${scholar.id}-${idx + 1}`,
-          characterId: scholar.id,
-          userName: s.userName,
-          text: s.text,
-          suggestedRating: s.suggestedRating,
-          createdAt: Date.now() - 1000 * 60 * 60 * (idx + 1) * 3,
-        });
-      });
+      const seeds = generateDiverseCommentsForCharacter(scholar.id, scholar.name);
+      list.push(...seeds);
       existingCharIds.add(scholar.id);
     }
   });
 
-  // 2. Also seed for specific requested characterId if it starts with azhar- or has no comments
-  if (requestedCharacterId && !existingCharIds.has(requestedCharacterId) && requestedCharacterId.includes('azhar')) {
-    const seeds = getAzharScholarComments(requestedCharacterId);
-    seeds.forEach((s, idx) => {
-      list.push({
-        id: `azhar-seed-${requestedCharacterId}-${idx + 1}`,
-        characterId: requestedCharacterId,
-        userName: s.userName,
-        text: s.text,
-        suggestedRating: s.suggestedRating,
-        createdAt: Date.now() - 1000 * 60 * 60 * (idx + 1) * 3,
-      });
-    });
+  // Also seed for specific requested characterId if it has no comments
+  if (requestedCharacterId && !existingCharIds.has(requestedCharacterId)) {
+    const seeds = generateDiverseCommentsForCharacter(requestedCharacterId, requestedCharacterId);
+    list.push(...seeds);
   }
 
   return list;
@@ -253,6 +239,94 @@ export async function addComment(
   saveLocalComments(updatedComments);
 
   return newComment;
+}
+
+/**
+ * Adds multiple comments in batch and syncs across Supabase and local storage.
+ */
+export async function addBatchComments(
+  newComments: CharacterComment[]
+): Promise<CharacterComment[]> {
+  if (!newComments || newComments.length === 0) return [];
+
+  const currentComments = await getComments();
+  const existingMap = new Map<string, CharacterComment>();
+  currentComments.forEach((c) => existingMap.set(c.id, c));
+
+  // Add or update
+  newComments.forEach((c) => existingMap.set(c.id, c));
+
+  const updatedComments = Array.from(existingMap.values()).sort(
+    (a, b) => (b.createdAt || 0) - (a.createdAt || 0)
+  );
+  commentsCache = updatedComments;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const rows = newComments.map((c) => ({
+        id: c.id,
+        character_id: c.characterId,
+        user_name: c.userName,
+        user_email: c.userEmail || null,
+        text: c.text,
+        guest_id: c.guestId || null,
+        suggested_rating: c.suggestedRating !== undefined ? c.suggestedRating : null,
+        created_at: c.createdAt || Date.now(),
+      }));
+
+      await supabase.from('character_comments').upsert(rows);
+    } catch {
+      // ignore
+    }
+
+    try {
+      await supabase.from('characters').upsert({
+        id: COMMENTS_STORE_ID,
+        name: 'System Comments Store',
+        picture: '',
+        rating: 0,
+        description: JSON.stringify(updatedComments),
+        updated_at: Date.now(),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    const { getStore } = await import('@netlify/blobs');
+    const store = getStore({ name: 'heroes-comments', consistency: 'strong' });
+    await store.setJSON('all-comments', updatedComments);
+  } catch {
+    // ignore
+  }
+
+  saveLocalComments(updatedComments);
+  return newComments;
+}
+
+/**
+ * Seeds diverse community comments for all provided characters (Positive, Balanced, Critical).
+ */
+export async function seedAllCharactersComments(
+  characters: Array<{ id: string; name: string }>
+): Promise<{ added: number; total: number }> {
+  const allGenerated: CharacterComment[] = [];
+
+  for (const char of characters) {
+    if (!char.id) continue;
+    const seeds = generateDiverseCommentsForCharacter(char.id, char.name || char.id);
+    allGenerated.push(...seeds);
+  }
+
+  await addBatchComments(allGenerated);
+  const current = await getComments();
+
+  return {
+    added: allGenerated.length,
+    total: current.length,
+  };
 }
 
 /**

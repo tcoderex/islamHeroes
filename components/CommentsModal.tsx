@@ -19,7 +19,7 @@ import { parseImagePosition } from '@/lib/imagePosition';
 import { getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import GoogleAuthButton, { GoogleUserProfile } from '@/components/GoogleAuthButton';
-import { getAzharScholarComments } from '@/lib/azhar-scholars-template';
+import { generateDiverseCommentsForCharacter } from '@/lib/characterCommentsSeed';
 
 export interface CharacterComment {
   id: string;
@@ -39,6 +39,8 @@ interface CommentsModalProps {
   isAdmin?: boolean;
   isAr: boolean;
   theme?: AppTheme;
+  currentUser?: GoogleUserProfile | null;
+  onUserChange?: (user: GoogleUserProfile | null) => void;
   onCommentsUpdated?: (characterId: string, newCount: number) => void;
   onShowToast?: (msg: string) => void;
 }
@@ -50,6 +52,8 @@ export default function CommentsModal({
   isAdmin = false,
   isAr,
   theme = 'tgis',
+  currentUser = null,
+  onUserChange,
   onCommentsUpdated,
   onShowToast,
 }: CommentsModalProps) {
@@ -59,7 +63,7 @@ export default function CommentsModal({
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Google User Authentication State
-  const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(null);
+  const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(currentUser);
   const [isBanned, setIsBanned] = useState(false);
   const [commentText, setCommentText] = useState('');
 
@@ -93,6 +97,18 @@ export default function CommentsModal({
     }
   }, []);
 
+  // Sync with currentUser prop whenever it updates in parent
+  useEffect(() => {
+    if (currentUser !== undefined) {
+      setGoogleUser(currentUser);
+      if (currentUser) {
+        checkBanStatus(currentUser.email, currentUser.googleId);
+      } else {
+        setIsBanned(false);
+      }
+    }
+  }, [currentUser, checkBanStatus]);
+
   const handleUserChange = useCallback((user: GoogleUserProfile | null) => {
     setGoogleUser((prev) => {
       if (
@@ -107,12 +123,14 @@ export default function CommentsModal({
       return user;
     });
 
+    onUserChange?.(user);
+
     if (user) {
       checkBanStatus(user.email, user.googleId);
     } else {
       setIsBanned(false);
     }
-  }, [checkBanStatus]);
+  }, [checkBanStatus, onUserChange]);
 
   const charId = character?.id;
 
@@ -296,49 +314,36 @@ export default function CommentsModal({
     }
   };
 
-  // 1-Click Seed Random Negative Comments (-30) for current character
-  const handleSeedNegativeComments = async () => {
+  // 1-Click Seed Diverse Arabic Community Comments (Positive, Balanced, Critical) - Strictly Admin
+  const handleSeedCommunityComments = async () => {
     if (!character) return;
     setIsLoading(true);
     try {
-      const seeds = getAzharScholarComments(character.id, character.name);
-      let addedCount = 0;
-
-      for (const seed of seeds) {
-        try {
-          const res = await fetch('/api/comments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              characterId: character.id,
-              userName: seed.userName,
-              text: seed.text,
-              suggestedRating: seed.suggestedRating,
-            }),
-          });
-          const data = await res.json();
-          if (data.success) {
-            addedCount++;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      // Re-fetch comments
-      const res = await fetch(`/api/comments?characterId=${encodeURIComponent(character.id)}`);
+      const seeds = generateDiverseCommentsForCharacter(character.id, character.name);
+      const res = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: seeds }),
+      });
       const data = await res.json();
-      if (data.success && Array.isArray(data.comments)) {
-        setComments(data.comments);
-        onCommentsUpdatedRef.current?.(character.id, data.comments.length);
+      if (data.success) {
+        // Re-fetch comments
+        const fetchRes = await fetch(`/api/comments?characterId=${encodeURIComponent(character.id)}`);
+        const fetchData = await fetchRes.json();
+        if (fetchData.success && Array.isArray(fetchData.comments)) {
+          setComments(fetchData.comments);
+          onCommentsUpdatedRef.current?.(character.id, fetchData.comments.length);
+        }
+        onShowToast?.(
+          isAr
+            ? 'تمت إضافة 3 تعليقات مجتمعية متنوعة (إيجابية ومتوازنة ونقدية) بنجاح!'
+            : 'Successfully added 3 diverse Arabic community comments!'
+        );
+      } else {
+        onShowToast?.(isAr ? 'فشل إضافة التعليقات' : 'Failed to seed comments');
       }
-      onShowToast?.(
-        isAr
-          ? `تمت إضافة 3 تعليقات نقدية عشوائية وتقييمات سالبة بنجاح!`
-          : `Successfully added 3 negative Arabic comments (<0)!`
-      );
     } catch {
-      onShowToast?.(isAr ? 'فشل إضافة التعليقات النقدية' : 'Failed to seed negative comments');
+      onShowToast?.(isAr ? 'فشل إضافة التعليقات المجتمعية' : 'Failed to seed comments');
     } finally {
       setIsLoading(false);
     }
@@ -434,18 +439,32 @@ export default function CommentsModal({
         {/* Scrollable Content Area */}
         <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-4 font-sans">
           {/* Google Auth Status Bar */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-[#0c1825] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-[#0c1825] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <UserCheck className="w-5 h-5 text-[#0067c0] dark:text-sky-400 shrink-0" />
+              {googleUser ? (
+                <div className="relative w-8 h-8 rounded-full overflow-hidden border border-emerald-500 shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={googleUser.picture}
+                    alt={googleUser.name}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border border-white" />
+                </div>
+              ) : (
+                <UserCheck className="w-5 h-5 text-[#0067c0] dark:text-sky-400 shrink-0" />
+              )}
               <div>
-                <span className="font-bold text-xs block text-slate-900 dark:text-slate-100">
-                  {isAr ? 'حساب Google للتعليق' : 'Google Comment Profile'}
+                <span className="font-bold text-xs block text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                  <span>{googleUser ? googleUser.name : isAr ? 'حساب Google للتعليق' : 'Google Comment Profile'}</span>
+                  {googleUser && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
                 </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                   {googleUser
                     ? isAr
-                      ? `مسجل بـ: ${googleUser.email}`
-                      : `Signed in as ${googleUser.email}`
+                      ? `متصل وموثق: ${googleUser.email}`
+                      : `Verified Google Account: ${googleUser.email}`
                     : isAr
                       ? 'قم بتسجيل الدخول بـ Google لتأكيد هويتك وكتابة تعليق'
                       : 'Sign in with Google to post verified comments'}
@@ -453,7 +472,14 @@ export default function CommentsModal({
               </div>
             </div>
 
-            <GoogleAuthButton onUserChange={handleUserChange} isAr={isAr} theme={theme} size="sm" />
+            {!googleUser ? (
+              <GoogleAuthButton onUserChange={handleUserChange} isAr={isAr} theme={theme} size="sm" />
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>{isAr ? 'حساب موثق وجاهز' : 'Verified & Ready'}</span>
+              </div>
+            )}
           </div>
 
           {/* Ban Warning if user is banned */}
@@ -560,17 +586,19 @@ export default function CommentsModal({
               </span>
 
               <div className="flex items-center gap-2">
-                {/* Seed 3 Random Negative Comments (<0) Button */}
-                <button
-                  type="button"
-                  onClick={handleSeedNegativeComments}
-                  disabled={isLoading}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-2xs active:scale-95"
-                  title={isAr ? 'إضافة 3 تعليقات نقدية عشوائية وتقييمات سالبة (-30) لهذه الشخصية' : 'Seed 3 random negative Arabic comments (<0)'}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span>{isAr ? 'إضافة تعليقات نقدية (-30)' : 'Seed Negative Comments (-30)'}</span>
-                </button>
+                {/* Seed Diverse Community Comments Button - strictly for admin */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleSeedCommunityComments}
+                    disabled={isLoading}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-2xs active:scale-95"
+                    title={isAr ? 'توليد 3 تعليقات مجتمعية متنوعة (إيجابية ومتوازنة ونقدية) لهذه الشخصية' : 'Seed 3 diverse community comments for this figure'}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{isAr ? '💬 توليد تعليقات مجتمعية' : 'Seed Community Comments'}</span>
+                  </button>
+                )}
 
                 <span className="text-[11px] text-slate-400 font-mono">
                   {comments.length} {isAr ? 'تعليق' : 'comments'}

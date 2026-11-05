@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComments, addComment, deleteComment, deleteCommentsByGuest, deleteCommentsByUserEmail } from '@/lib/commentsStorage';
+import {
+  getComments,
+  addComment,
+  addBatchComments,
+  seedAllCharactersComments,
+  deleteComment,
+  deleteCommentsByGuest,
+  deleteCommentsByUserEmail,
+} from '@/lib/commentsStorage';
 import { isUserBanned } from '@/lib/bannedUsersStorage';
 
 export const dynamic = 'force-dynamic';
@@ -53,10 +61,43 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/comments - Add user comment
+// POST /api/comments - Add user comment or batch seed
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // 1. Action: Batch Seed All Characters with diverse Arabic community comments
+    if (body.action === 'seed_all' || body.action === 'seed_batch') {
+      const characters = Array.isArray(body.characters) ? body.characters : [];
+      if (characters.length === 0) {
+        return NextResponse.json(
+          { success: false, error: 'No characters provided for seeding' },
+          { status: 400 }
+        );
+      }
+
+      const result = await seedAllCharactersComments(characters);
+      return NextResponse.json(
+        {
+          success: true,
+          added: result.added,
+          total: result.total,
+          message: 'Successfully seeded diverse Arabic comments for all characters',
+        },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    // 2. Action: Batch Direct Comments Insertion
+    if (Array.isArray(body.batch) && body.batch.length > 0) {
+      const inserted = await addBatchComments(body.batch);
+      return NextResponse.json(
+        { success: true, count: inserted.length },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    // 3. Single Comment Addition
     const { characterId, userName, userEmail, text, guestId, suggestedRating } = body;
 
     if (!characterId || typeof characterId !== 'string') {

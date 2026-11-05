@@ -29,6 +29,7 @@ import {
   Trash2,
   Loader2,
   Clock,
+  Eye,
 } from 'lucide-react';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { AZHAR_SCHOLARS_TEMPLATE, getAzharScholarComments } from '@/lib/azhar-scholars-template';
@@ -46,6 +47,8 @@ interface AdminSettingsModalProps {
   onExportCharacters: (includeCharacters?: boolean, includeComments?: boolean) => void;
   onShowToast: (msg: string) => void;
   isAr: boolean;
+  onRefreshCommentCounts?: () => void;
+  onDeactivateAdmin?: () => void;
 }
 
 export default function AdminSettingsModal({
@@ -60,6 +63,8 @@ export default function AdminSettingsModal({
   onExportCharacters,
   onShowToast,
   isAr,
+  onRefreshCommentCounts,
+  onDeactivateAdmin,
 }: AdminSettingsModalProps) {
   const [activeSubTab, setActiveSubTab] = useState<'theme' | 'template' | 'backup' | 'supabase' | 'users' | 'banned'>('theme');
   const [showConfirmReplace, setShowConfirmReplace] = useState(false);
@@ -316,40 +321,38 @@ ON CONFLICT (id) DO UPDATE SET
 
   if (!isOpen) return null;
 
-  const handleSeedAllAzharNegativeComments = async () => {
+  const handleSeedAllCommunityComments = async () => {
+    if (!characters || characters.length === 0) {
+      onShowToast(isAr ? 'لا توجد شخصيات لتوليد التعليقات لها' : 'No figures to seed comments for');
+      return;
+    }
+
     setIsSeedingAzharComments(true);
     try {
-      let totalAdded = 0;
-      for (const scholar of AZHAR_SCHOLARS_TEMPLATE) {
-        const seeds = getAzharScholarComments(scholar.id, scholar.name);
-        for (const seed of seeds) {
-          try {
-            const res = await fetch('/api/comments', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                characterId: scholar.id,
-                userName: seed.userName,
-                text: seed.text,
-                suggestedRating: seed.suggestedRating,
-              }),
-            });
-            const data = await res.json();
-            if (data.success) {
-              totalAdded++;
-            }
-          } catch {
-            // ignore
-          }
-        }
+      const payload = {
+        action: 'seed_all',
+        characters: characters.map((c) => ({ id: c.id, name: c.name })),
+      };
+
+      const res = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        onShowToast(
+          isAr
+            ? `تم توليد تعليقات مجتمعية متنوعة (إيجابية ومتوازنة ونقدية) لجميع الـ ${characters.length} شخصية بنجاح!`
+            : `Successfully seeded diverse community comments for all ${characters.length} figures!`
+        );
+        onRefreshCommentCounts?.();
+      } else {
+        onShowToast(data.error || (isAr ? 'فشل توليد التعليقات' : 'Failed to seed comments'));
       }
-      onShowToast(
-        isAr
-          ? `تمت إضافة ${totalAdded || 30} تعليقاً نقدياً وتقييمات سالبة (-30) لجميع شيوخ الأزهر بنجاح!`
-          : `Successfully seeded negative Arabic comments (<0) for all Azhar scholars!`
-      );
     } catch {
-      onShowToast(isAr ? 'فشل إضافة تعليقات الأزهر' : 'Failed to seed Azhar comments');
+      onShowToast(isAr ? 'خطأ في الاتصال بالخادم' : 'Server connection error');
     } finally {
       setIsSeedingAzharComments(false);
     }
@@ -539,17 +542,38 @@ ON CONFLICT (id) DO UPDATE SET
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
-              isRamadan
-                ? 'text-amber-200/70 hover:text-amber-100 hover:bg-white/10'
-                : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onDeactivateAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDeactivateAdmin();
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  isRamadan
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                    : 'border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+                title={isAr ? 'إلغاء وضع المشرف ومعاينة الموقع كزائر عادي' : 'Deactivate admin mode to view as normal user'}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>{isAr ? 'معاينة كمستخدم عادي' : 'Normal User View'}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
+                isRamadan
+                  ? 'text-amber-200/70 hover:text-amber-100 hover:bg-white/10'
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Sub-tabs Navigation - Responsive scrollable bar */}
@@ -910,17 +934,17 @@ ON CONFLICT (id) DO UPDATE SET
                   </span>
                 </button>
 
-                {/* Seed Azhar Negative Comments Button */}
+                {/* Seed Community Comments for All Characters Button */}
                 <button
                   type="button"
-                  onClick={handleSeedAllAzharNegativeComments}
+                  onClick={handleSeedAllCommunityComments}
                   disabled={isSeedingAzharComments}
                   className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     isRamadan
                       ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30'
                       : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300'
                   }`}
-                  title={isAr ? 'إضافة 30+ تعليقاً نقدياً بأسماء وهمية وتقييمات سالبة لشيوخ الأزهر' : 'Seed 30+ negative Arabic comments (<0) for Azhar template'}
+                  title={isAr ? `توليد تعليقات مجتمعية متنوعة لجميع الـ ${characters.length} شخصية` : 'Seed diverse community comments for all figures'}
                 >
                   <Sparkles className="w-4 h-4 text-amber-500" />
                   <span>
@@ -929,8 +953,8 @@ ON CONFLICT (id) DO UPDATE SET
                         ? 'جاري توليد التعليقات...'
                         : 'Seeding...'
                       : isAr
-                        ? '💬 إضافة تعليقات نقدية عشوائية (-30)'
-                        : 'Seed Azhar Negative Comments (-30)'}
+                        ? `💬 توليد تعليقات مجتمعية للكل (${characters.length})`
+                        : `Seed Community Comments (${characters.length})`}
                   </span>
                 </button>
 

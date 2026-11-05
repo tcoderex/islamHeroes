@@ -1,10 +1,326 @@
 [
   {
-    "id": "cmt-1793563103432-ihnkq",
+    "id": "cmt-1793885969191-fuv56",
+    "characterId": "char-1793558149276",
+    "userName": "عمر بن فاروق",
+    "text": "التقييم يبالغ في تقدير المكانة بدون النظر في دراسات الأصول الحديثة (-30).",
+    "suggestedRating": -30,
+    "createdAt": 1793885969191
+  },
+  {
+    "id": "cmt-1793885968427-h58c4",
+    "characterId": "char-1793558149276",
+    "userName": "محمود القحطاني",
+    "text": "أختلف مع هذه الرتبة العالية، أطالب بخصم 60 نقطة لإنصاف باقي العلماء (-60).",
+    "suggestedRating": -60,
+    "createdAt": 1793885968427
+  },
+  {
+    "id": "cmt-1793885967655-qh99a",
+    "characterId": "char-1793558149276",
+    "userName": "أحمد العبدالله",
+    "text": "التقييم هنا مرتفع جداً ويحتاج مراجعة وتخفيض رتبته بالسالب (-45).",
+    "suggestedRating": -45,
+    "createdAt": 1793885967655
+  },
+  {
+    "id": "cmt-1793885944818-qfr4l",
+    "characterId": "azhar-muhammad-almaraghi",
+    "userName": "معاذ الحارثي",
+    "text": "تعديل سالب مطلوب لتعديل مرتبة الشخصية وتنسيقها مع بقية العلماء (-35).",
+    "suggestedRating": -35,
+    "createdAt": 1793885944818
+  },
+  {
+    "id": "cmt-1793885943893-e5qmg",
+    "characterId": "azhar-muhammad-almaraghi",
+    "userName": "هشام بن طالب",
+    "text": "التقييم (+955) مرتفع مقارنة بعلماء وقضاة عصره، أرى خفض 70 نقطة (-70).",
+    "suggestedRating": -70,
+    "createdAt": 1793885943893
+  },
+  {
+    "id": "cmt-1793885942671-v170a",
+    "characterId": "azhar-muhammad-almaraghi",
+    "userName": "فيصل العنزي",
+    "text": "إصلاحات المحاكم الشرعية تتطلب تقييماً أكثر دقة وتخفيضاً سالب لترتيبه (-55).",
+    "suggestedRating": -55,
+    "createdAt": 1793885942671
+  },
+  {
+    "id": "cmt-1793885941933-0ak8m",
+    "characterId": "azhar-muhammad-abduh",
+    "userName": "نايف المطيري",
+    "text": "تعديل سالب مستحق بناءً على مراجعات المدارس الأصولية الحديثة (-45).",
+    "suggestedRating": -45,
+    "createdAt": 1793885941933
+  },
+  {
+    "id": "cmt-1793885941189-vmnjc",
+    "characterId": "azhar-muhammad-abduh",
+    "userName": "منصور الشمري",
+    "text": "التقييم (+960) أعلى من المتوقع بالنسبة لأفكاره التجديدية المتنازع عليها (-75).",
+    "suggestedRating": -75,
+    "createdAt": 1793885941189
+  },
+  {
+    "id": "cmt-1793885940435-8wwwh",
+    "characterId": "azhar-muhammad-abduh",
+    "userName": "عبدالعزيز الغامدي",
+    "text": "منهجه العقلاني في التفسير واجه نقداً أثرياً كبيراً، أطالب بخصم 110 نقطة (-110).",
+    "suggestedRating": -110,
+    "createdAt": 1793885940435
+  },
+  {
+    "id": "cmt-1793885939707-dqvmr",
+    "characterId": "azhar-abdulhamid-kishk",
+    "userName": "فهد العتيبي",
+    "text": "التقييم الحالي مبالغ فيه ويحتاج تعديلاً أصولياً بالسالب (-50).",
+    "suggestedRating": -50,
+    "createdAt": 1793885939707
+  },
+  {
+    "id": "cmt-1793885938875-cdxam",
+    "characterId": "azhar-abdulhamid-kishk",
+    "userName": "سعيد باوزير",
+    "text": "أرى تخفيض التقييم 60 نقطة لغياب المؤثورات والمؤلفات الفقهية المحققة بقلمه (-60).",
+    "suggestedRating": -60,
+    "createdAt": 1793885938875
+  },
+  {
+    "id": "cmt-1793885938061-uqnsk",
+    "characterId": "azhar-abdulhamid-kishk",
+    "userName": "راشد الدوسري",
+    "text": "أسلوب الخطابة الجماهيري المؤثر لا يعكس بالضرورة رتبة فقهية (+975)، التقييم المستحق أقل (-95).",
+    "suggestedRating": -95,
+    "createdAt": 1793885938061
+  },
+  {
+    "id": "cmt-1793885937019-klarb",
+    "characterId": "azhar-muhammad-alghazali",
+    "userName": "بلال السليم",
+    "text": "تعديل سالب مستحق بمقدار 40 نقطة لتوازن التقييم العام للشخصية (-40).",
+    "suggestedRating": -40,
+    "createdAt": 1793885937019
+  },
+  {
+    "id": "cmt-1793885936069-zj6cx",
+    "characterId": "azhar-muhammad-alghazali",
+    "userName": "عثمان النجدي",
+    "text": "التقييم (+985) مرتفع جداً مقارنة بمحقيقي الحديث الشريف في العصر الحديث (-65).",
+    "suggestedRating": -65,
+    "createdAt": 1793885936069
+  },
+  {
+    "id": "cmt-1793885935308-om2c6",
+    "characterId": "azhar-muhammad-alghazali",
+    "userName": "ماجد المرزوقي",
+    "text": "آراؤه في قضايا السنة النبوية الشريفة أثارت انتقادات أحدثت رغبة في خفض تقييمه (-85).",
+    "suggestedRating": -85,
+    "createdAt": 1793885935308
+  },
+  {
+    "id": "cmt-1793885934579-t6k14",
+    "characterId": "azhar-mahmoud-shaltout",
+    "userName": "صالح الفليح",
+    "text": "يجب إعادة النظر في تقييم المصلحين وتخفيض الرتبة لتناسب المعايير الفقهية الدقيقة (-30).",
+    "suggestedRating": -30,
+    "createdAt": 1793885934579
+  },
+  {
+    "id": "cmt-1793885933842-dqfuj",
+    "characterId": "azhar-mahmoud-shaltout",
+    "userName": "حمزة الشريف",
+    "text": "التقييم (+970) يتطلب تعديلاً بالسالب بمقدار 50 نقطة لمراعاة الملاحظات الأصولية (-50).",
+    "suggestedRating": -50,
+    "createdAt": 1793885933842
+  },
+  {
+    "id": "cmt-1793885933055-v2aqd",
+    "characterId": "azhar-mahmoud-shaltout",
+    "userName": "إبراهيم الحسيني",
+    "text": "فتوى التقريب بين المذاهب أثارت تحفظات فقهية واسعة، أرى خفض التقييم (-70).",
+    "suggestedRating": -70,
+    "createdAt": 1793885933055
+  },
+  {
+    "id": "cmt-1793885932289-a9t4v",
+    "characterId": "azhar-gad-alhaq",
+    "userName": "أنس المغربي",
+    "text": "رتبة مرتفعة جداً مقارنة بعلماء الأصول المتقدمين في تاريخ الأزهر الشريف (-40).",
+    "suggestedRating": -40,
+    "createdAt": 1793885932289
+  },
+  {
+    "id": "cmt-1793885931520-0a0ot",
+    "characterId": "azhar-gad-alhaq",
+    "userName": "بدر العتيبي",
+    "text": "أطالب بتخفيض التقييم 90 نقطة لتعديل ميزان الدرجات الفقهية الممنوحة له (-90).",
+    "suggestedRating": -90,
+    "createdAt": 1793885931520
+  },
+  {
+    "id": "cmt-1793885930798-t3hja",
+    "characterId": "azhar-gad-alhaq",
+    "userName": "زياد المنيفي",
+    "text": "التقييم الفقهي (+980) يحتاج تخفيضاً بناءً على تباين بعض فتاوى المجالس الفقهية (-60).",
+    "suggestedRating": -60,
+    "createdAt": 1793885930798
+  },
+  {
+    "id": "cmt-1793885930060-2lao4",
+    "characterId": "azhar-abdelhalim-mahmoud",
+    "userName": "مصطفى كامل",
+    "text": "ملاحظات بعض العلماء على كتبه الصوفية تجعلني أطالب بتعديل التقييم بالسالب (-35).",
+    "suggestedRating": -35,
+    "createdAt": 1793885930060
+  },
+  {
+    "id": "cmt-1793885929262-2z66p",
+    "characterId": "azhar-abdelhalim-mahmoud",
+    "userName": "وليد الشامي",
+    "text": "أرى أن التقييم المستحق أقل بـ 80 نقطة ليكون الترتيب أكثر توازناً وإنصافاً (-80).",
+    "suggestedRating": -80,
+    "createdAt": 1793885929262
+  },
+  {
+    "id": "cmt-1793885928489-se8uk",
+    "characterId": "azhar-abdelhalim-mahmoud",
+    "userName": "خالد بن الوليد",
+    "text": "التقييم (+990) يبالغ في التقدير مقارنة بأئمة الفقه وأهل الحديث الكبار بالأزهر (-50).",
+    "suggestedRating": -50,
+    "createdAt": 1793885928489
+  },
+  {
+    "id": "cmt-1793885927399-vx7q0",
+    "characterId": "azhar-ahmed-tayeb",
+    "userName": "حسام عاطف",
+    "text": "الترتيب الحالي بحاجة لإعادة نظر وتعديل سالب يوازن بينه وبين علماء الأزهر الأقدمين (-25).",
+    "suggestedRating": -25,
+    "createdAt": 1793885927399
+  },
+  {
+    "id": "cmt-1793885926291-j3h3h",
+    "characterId": "azhar-ahmed-tayeb",
+    "userName": "طارق السويفي",
+    "text": "المواقف الرسمية تتطلب تقييماً أكثر تحافظاً وتخفيض الرتبة التقييمية بنقاط سلبية (-70).",
+    "suggestedRating": -70,
+    "createdAt": 1793885926291
+  },
+  {
+    "id": "cmt-1793885925430-nytfv",
+    "characterId": "azhar-ahmed-tayeb",
+    "userName": "عبدالرحمن الباز",
+    "text": "رتبة (+990) عالية جداً لشيخ الأزهر الحالي، أطالب بتعديل التقييم بالسالب مراعاة لدقة المقارنة (-40).",
+    "suggestedRating": -40,
+    "createdAt": 1793885925430
+  },
+  {
+    "id": "cmt-1793885924029-uxp26",
+    "characterId": "azhar-abdullah-rushdy",
+    "userName": "يوسف نصر",
+    "text": "التقييم يجب أن ينخفض بمقدار 45 نقطة ليتوافق مع دراسات مقارنة الأديان الأكاديمية (-45).",
+    "suggestedRating": -45,
+    "createdAt": 1793885924029
+  },
+  {
+    "id": "cmt-1793885922991-7m9qb",
+    "characterId": "azhar-abdullah-rushdy",
+    "userName": "كريم الجمل",
+    "text": "تركيزه على المناظرات الحادة أثار جدلاً أصولياً، التقييم يحتاج تخفيضاً بنسبة ملموسة (-100).",
+    "suggestedRating": -100,
+    "createdAt": 1793885922991
+  },
+  {
+    "id": "cmt-1793885922191-q9mvg",
+    "characterId": "azhar-abdullah-rushdy",
+    "userName": "سامي الزهراني",
+    "text": "التقييم الحالي (+920) مرتفع بالنسبة لداعية معاصر، أرى خفض التقييم وتعديل رتبته بالسالب (-60).",
+    "suggestedRating": -60,
+    "createdAt": 1793885922191
+  },
+  {
+    "id": "cmt-1793885920955-l4se1",
+    "characterId": "azhar-sharawi",
+    "userName": "ياسر المنشاوي",
+    "text": "يجب خصم 40 نقطة من التقييم لإعادة التوازن للرتب العليا بالسالب (-40).",
+    "suggestedRating": -40,
+    "createdAt": 1793885920955
+  },
+  {
+    "id": "cmt-1793885919710-s1x98",
+    "characterId": "azhar-sharawi",
+    "userName": "عمر بن فاروق",
+    "text": "مع كامل الاحترام لمكانته الإيمانية والخواطر، التقييم مبالغ فيه مقارنة بشرّاح أصول الفقه المتقدمين (-30).",
+    "suggestedRating": -30,
+    "createdAt": 1793885919710
+  },
+  {
+    "id": "cmt-1793885918302-pevmr",
+    "characterId": "azhar-sharawi",
+    "userName": "محمود القحطاني",
+    "text": "أختلف مع التقييم الكامل 1000، يجب مراجعة التقييم وإعطاء فرصة لباقي الأئمة المتقدمين في تاريخ الأزهر (-75).",
+    "suggestedRating": -75,
+    "createdAt": 1793885918302
+  },
+  {
+    "id": "cmt-1793885917101-dwlpe",
+    "characterId": "azhar-sharawi",
+    "userName": "أحمد العبدالله",
+    "text": "التقييم مرتفع جداً (+1000)، أرى أن التقييم المستحق أقل من ذلك بسبب تبسيط بعض المسائل الفقهية وتسهيلها (-50).",
+    "suggestedRating": -50,
+    "createdAt": 1793885917101
+  },
+  {
+    "id": "cmt-1793880010923-wjflm",
+    "characterId": "char-1793390528825",
+    "userName": "Wess Thegame",
+    "userEmail": "wessthegame@gmail.com",
+    "text": "انا بحب عبد الله رشدي",
+    "guestId": "115132870303952387853",
+    "createdAt": 1793880010923
+  },
+  {
+    "id": "seed-pos-test-char-2",
+    "characterId": "test-char-2",
+    "userName": "حمزة التميمي",
+    "text": "قدوة مباركة في الجمع بين غزارة العلم وصدق العمل والدعوة بالحكمة والموعظة الحسنة (+150).",
+    "suggestedRating": 200,
+    "createdAt": 1793872455881
+  },
+  {
+    "id": "seed-bal-test-char-2",
+    "characterId": "test-char-2",
+    "userName": "مروان بن عبدالحكيم",
+    "text": "شخصية تاريخية بارزة؛ دراسة سيرته ومواقفه تقدم دروساً ثمينة في الفقه الحضاري والواقعي (+50).",
+    "suggestedRating": 30,
+    "createdAt": 1793793255881
+  },
+  {
+    "id": "seed-crit-test-char-2",
+    "characterId": "test-char-2",
+    "userName": "الشيخ عمر الفاروقي",
+    "text": "له مواقف محمودة، لكن أسلوب بعض المناظرات أو الطروحات كان يحتاج تأنياً أصولياً أكبر (-35).",
+    "suggestedRating": -40,
+    "createdAt": 1793620455881
+  },
+  {
+    "id": "cmt-1793614819169-p3s05",
     "characterId": "char-1793555503034",
-    "userName": "Guest",
-    "text": "Hi",
-    "createdAt": 1793563103432
+    "userName": "Wasim dorboz",
+    "userEmail": "tcoderex@gmail.com",
+    "text": "perfec",
+    "guestId": "v1i4qY1oCkYS2JVn0LbbkII2Nws2",
+    "createdAt": 1793614819169
+  },
+  {
+    "id": "cmt-1793595975475-h2av2",
+    "characterId": "char-1793555503034",
+    "userName": "Tcoder",
+    "userEmail": "tcoderex@gmail.com",
+    "text": "good",
+    "guestId": "google_user_tcoderex_gmail_com",
+    "createdAt": 1793595975475
   },
   {
     "id": "cmt-1793562207081-ti0df",

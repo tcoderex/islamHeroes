@@ -22,6 +22,8 @@ import {
   MessageSquare,
   Award,
   Bell,
+  Eye,
+  ShieldCheck,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal from '@/components/AdminSettingsModal';
@@ -266,11 +268,25 @@ export default function HomePage() {
   // Restore client-persisted state safely post-hydration and sync with shared server API
   useEffect(() => {
     try {
-      // Disconnect all users and admin on fresh load to start from zero as requested
-      localStorage.removeItem('heroes_google_user');
-      localStorage.setItem('heroes_admin_active', 'false');
-      setCurrentGoogleUser(null);
-      setIsAdmin(false);
+      // Restore Google User from localStorage
+      const savedUserStr = localStorage.getItem('heroes_google_user');
+      if (savedUserStr) {
+        try {
+          const parsedUser = JSON.parse(savedUserStr);
+          if (parsedUser && parsedUser.email) {
+            setCurrentGoogleUser(parsedUser);
+            const savedAdmin = localStorage.getItem('heroes_admin_active');
+            if (
+              savedAdmin === 'true' &&
+              parsedUser.email.toLowerCase().trim() === 'tcoderex@gmail.com'
+            ) {
+              setIsAdmin(true);
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
 
       const savedTheme = localStorage.getItem('heroes_app_theme');
       if (savedTheme === 'tgis' || savedTheme === 'ramadan') {
@@ -301,17 +317,26 @@ export default function HomePage() {
     }, 2400);
   };
 
-  // Toggle Admin on/off when passcode 0001 is entered - strictly for tcoderex@gmail.com
+  // 1-Click Deactivate Admin Mode to preview application as normal user
+  const handleDeactivateAdmin = () => {
+    setIsAdmin(false);
+    setActiveTab('search');
+    try {
+      localStorage.setItem('heroes_admin_active', 'false');
+    } catch {
+      // ignore
+    }
+    showToast(
+      isAr
+        ? 'تم تفعيل وضع المعاينة كمستخدم عادي (تم إلغاء وضع المشرف)'
+        : 'Switched to Normal User View (Admin mode deactivated)'
+    );
+  };
+
+  // Toggle Admin on/off when passcode is entered - strictly for tcoderex@gmail.com
   const handleAdminToggle = () => {
     if (isAdmin) {
-      setIsAdmin(false);
-      setActiveTab('search');
-      try {
-        localStorage.setItem('heroes_admin_active', 'false');
-      } catch {
-        // ignore
-      }
-      showToast(isAr ? 'تم تعطيل وضع الإدارة بنجاح' : 'Admin mode disabled successfully');
+      handleDeactivateAdmin();
       return;
     }
 
@@ -833,6 +858,23 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <GoogleAuthButton onUserChange={handleUserChange} isAr={isAr} theme={theme} size="sm" compactHeader />
 
+            {/* Activate Admin Button for tcoderex@gmail.com when in normal user view */}
+            {!isAdmin && currentGoogleUser?.email?.toLowerCase().trim() === 'tcoderex@gmail.com' && (
+              <button
+                type="button"
+                onClick={() => setIsAdminModalOpen(true)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95 border ${
+                  isRamadan
+                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-700 hover:bg-amber-500/20'
+                }`}
+                title={isAr ? 'تفعيل وضع المشرف (إدخال رمز المرور)' : 'Activate Admin Mode'}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span className="hidden xs:inline">{isAr ? 'وضع المشرف' : 'Admin Mode'}</span>
+              </button>
+            )}
+
             {/* Notification Bell Button */}
             <button
               type="button"
@@ -964,6 +1006,21 @@ export default function HomePage() {
             >
               <Settings className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{isAr ? 'الإعدادات' : 'Settings'}</span>
+            </button>
+
+            {/* 1-Click Normal User View toggle (Deactivate Admin Mode) */}
+            <button
+              type="button"
+              onClick={handleDeactivateAdmin}
+              className={`px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 border ${
+                isRamadan
+                  ? 'text-amber-300 hover:bg-amber-400/20 bg-amber-500/10 border-amber-500/30'
+                  : 'text-slate-700 hover:bg-slate-200 bg-slate-100 border-slate-300'
+              }`}
+              title={isAr ? 'معاينة الموقع كمستخدم عادي بدون صلاحيات المشرف' : 'View as Normal User without admin controls'}
+            >
+              <Eye className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+              <span className="whitespace-nowrap">{isAr ? 'معاينة كمستخدم عادي' : 'Normal User View'}</span>
             </button>
           </div>
         </div>
@@ -1710,6 +1767,8 @@ export default function HomePage() {
         onExportCharacters={handleExportJSON}
         onShowToast={showToast}
         isAr={isAr}
+        onRefreshCommentCounts={fetchCommentCounts}
+        onDeactivateAdmin={handleDeactivateAdmin}
       />
 
       {/* Character Preview Modal */}
@@ -1755,6 +1814,8 @@ export default function HomePage() {
         isAdmin={isAdmin}
         isAr={isAr}
         theme={theme}
+        currentUser={currentGoogleUser}
+        onUserChange={handleUserChange}
         onCommentsUpdated={handleCommentsUpdated}
         onShowToast={showToast}
       />
