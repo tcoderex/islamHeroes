@@ -31,7 +31,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { AppTheme, THEMES } from '@/lib/theme';
-import { AZHAR_SCHOLARS_TEMPLATE } from '@/lib/azhar-scholars-template';
+import { AZHAR_SCHOLARS_TEMPLATE, getAzharScholarComments } from '@/lib/azhar-scholars-template';
 import { CustomCharacter } from '@/components/CharactersView';
 
 interface AdminSettingsModalProps {
@@ -63,6 +63,7 @@ export default function AdminSettingsModal({
 }: AdminSettingsModalProps) {
   const [activeSubTab, setActiveSubTab] = useState<'theme' | 'template' | 'backup' | 'supabase' | 'users' | 'banned'>('theme');
   const [showConfirmReplace, setShowConfirmReplace] = useState(false);
+  const [isSeedingAzharComments, setIsSeedingAzharComments] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [copiedInserts, setCopiedInserts] = useState(false);
@@ -314,6 +315,45 @@ ON CONFLICT (id) DO UPDATE SET
   };
 
   if (!isOpen) return null;
+
+  const handleSeedAllAzharNegativeComments = async () => {
+    setIsSeedingAzharComments(true);
+    try {
+      let totalAdded = 0;
+      for (const scholar of AZHAR_SCHOLARS_TEMPLATE) {
+        const seeds = getAzharScholarComments(scholar.id, scholar.name);
+        for (const seed of seeds) {
+          try {
+            const res = await fetch('/api/comments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                characterId: scholar.id,
+                userName: seed.userName,
+                text: seed.text,
+                suggestedRating: seed.suggestedRating,
+              }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              totalAdded++;
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+      onShowToast(
+        isAr
+          ? `تمت إضافة ${totalAdded || 30} تعليقاً نقدياً وتقييمات سالبة (-30) لجميع شيوخ الأزهر بنجاح!`
+          : `Successfully seeded negative Arabic comments (<0) for all Azhar scholars!`
+      );
+    } catch {
+      onShowToast(isAr ? 'فشل إضافة تعليقات الأزهر' : 'Failed to seed Azhar comments');
+    } finally {
+      setIsSeedingAzharComments(false);
+    }
+  };
 
   const handleAppendTemplate = () => {
     onAppendCharacters(AZHAR_SCHOLARS_TEMPLATE);
@@ -867,6 +907,30 @@ ON CONFLICT (id) DO UPDATE SET
                     {isAr
                       ? 'إضافة شيوخ الأزهر إلى القائمة الحالية (+10)'
                       : 'Append 10 Scholars to Current List'}
+                  </span>
+                </button>
+
+                {/* Seed Azhar Negative Comments Button */}
+                <button
+                  type="button"
+                  onClick={handleSeedAllAzharNegativeComments}
+                  disabled={isSeedingAzharComments}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    isRamadan
+                      ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300'
+                  }`}
+                  title={isAr ? 'إضافة 30+ تعليقاً نقدياً بأسماء وهمية وتقييمات سالبة لشيوخ الأزهر' : 'Seed 30+ negative Arabic comments (<0) for Azhar template'}
+                >
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>
+                    {isSeedingAzharComments
+                      ? isAr
+                        ? 'جاري توليد التعليقات...'
+                        : 'Seeding...'
+                      : isAr
+                        ? '💬 إضافة تعليقات نقدية عشوائية (-30)'
+                        : 'Seed Azhar Negative Comments (-30)'}
                   </span>
                 </button>
 

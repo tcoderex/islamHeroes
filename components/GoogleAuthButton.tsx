@@ -70,16 +70,6 @@ export default function GoogleAuthButton({
   const [isSavingName, setIsSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
-  // Direct Google Connect Modal state (for Netlify/custom domains and 100% reliable login)
-  const [isDirectConnectOpen, setIsDirectConnectOpen] = useState(false);
-  const [directEmail, setDirectEmail] = useState('tcoderex@gmail.com');
-  const [directName, setDirectName] = useState('Wasim dorboz');
-  const [directPasscode, setDirectPasscode] = useState('');
-  const [directError, setDirectError] = useState<string | null>(null);
-  const [directIsSubmitting, setDirectIsSubmitting] = useState(false);
-  const [directActiveTab, setDirectActiveTab] = useState<'admin' | 'user'>('admin');
-  const [showNetlifyInfo, setShowNetlifyInfo] = useState(false);
-
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -389,118 +379,27 @@ export default function GoogleAuthButton({
         console.warn('Google Identity Services attempt failed:', gisErr);
       }
 
-      // Tier 3: If domain is blocked in Firebase/Google (Netlify) or popup blocked, open Direct Connect Modal!
-      const isDomainBlocked =
-        fbErr?.code === 'auth/unauthorized-domain' ||
-        fbErr?.code === 'auth/configuration-not-found';
-
-      if (isDomainBlocked) {
+      if (fbErr?.code === 'auth/unauthorized-domain' || fbErr?.code === 'auth/configuration-not-found') {
         setAuthError(
           isAr
-            ? 'النطاق غير مسجل في Firebase. تم فتح نافذة الربط المباشر.'
-            : 'Domain not registered in Firebase. Direct Connect opened.'
+            ? 'النطاق غير مسجل في Firebase. يرجى إضافة النطاق في إعدادات Firebase Authorized Domains'
+            : 'Domain not registered in Firebase Authorized Domains.'
         );
       } else if (fbErr?.code === 'auth/popup-blocked') {
         setAuthError(
           isAr
-            ? 'تم حظر النافذة بواسطة المتصفح. يمكنك الربط المباشر الآن.'
-            : 'Popup blocked by browser. You can connect directly.'
+            ? 'تم حظر النافذة المنبثقة بواسطة المتصفح. يرجى السماح بالنوافذ المنبثقة'
+            : 'Popup blocked by browser. Please allow popups.'
         );
       } else {
         setAuthError(
           isAr
-            ? 'تعذر إتمام الدخول بـ Google. تم فتح نافذة الربط المباشر.'
-            : 'Google popup restricted on this domain. Direct Connect opened.'
+            ? 'تعذر إتمام تسجيل الدخول بـ Google. يرجى إعادة المحاولة'
+            : 'Google sign-in failed. Please try again.'
         );
       }
-
-      // Automatically open Direct Connect Modal so the user is NEVER blocked
-      setIsDirectConnectOpen(true);
     } finally {
       setIsAuthenticating(false);
-    }
-  };
-
-  // Direct Connect Handler: Admin verification (tcoderex@gmail.com with passcode 0001)
-  const handleDirectAdminSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setDirectError(null);
-
-    const passcode = directPasscode.trim();
-    if (passcode !== '0001') {
-      setDirectError(
-        isAr
-          ? 'رمز مرور المشرف غير صحيح. الرمز السري هو 0001.'
-          : 'Incorrect admin passcode. Passcode is 0001.'
-      );
-      return;
-    }
-
-    setDirectIsSubmitting(true);
-    try {
-      await processAndSaveGoogleUser(
-        'tcoderex@gmail.com',
-        'Wasim dorboz',
-        'https://unavatar.io/tcoderex@gmail.com',
-        'admin_tcoderex'
-      );
-      setIsDirectConnectOpen(false);
-      setDirectPasscode('');
-      setAuthError(null);
-    } catch {
-      setDirectError(
-        isAr ? 'حدث خطأ أثناء ربط الحساب. يرجى إعادة المحاولة' : 'Error connecting account. Try again.'
-      );
-    } finally {
-      setDirectIsSubmitting(false);
-    }
-  };
-
-  // Direct Connect Handler: Any Google User (with display name and Google avatar)
-  const handleDirectUserSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setDirectError(null);
-
-    const cleanEmail = directEmail.toLowerCase().trim();
-    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-      setDirectError(
-        isAr
-          ? 'يرجى إدخال عنوان بريد إلكتروني صالح لـ Google'
-          : 'Please enter a valid Google email address'
-      );
-      return;
-    }
-
-    // Protect tcoderex@gmail.com from unauthorized access
-    if (cleanEmail === 'tcoderex@gmail.com') {
-      setDirectActiveTab('admin');
-      setDirectError(
-        isAr
-          ? 'حساب المشرف tcoderex@gmail.com يتطلب إدخال رمز المرور السري (0001) في تبويب المشرف'
-          : 'Admin account tcoderex@gmail.com requires entering secret passcode (0001) in Admin tab'
-      );
-      return;
-    }
-
-    const trimmedName = directName.trim() || cleanEmail.split('@')[0];
-    const photo = `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`;
-
-    setDirectIsSubmitting(true);
-    try {
-      await processAndSaveGoogleUser(
-        cleanEmail,
-        trimmedName,
-        photo,
-        `user_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`
-      );
-      setIsDirectConnectOpen(false);
-      setAuthError(null);
-    } catch {
-      setDirectError(
-        isAr ? 'حدث خطأ أثناء ربط الحساب. يرجى إعادة المحاولة' : 'Error connecting account. Try again.'
-      );
-    } finally {
-      setDirectIsSubmitting(false);
     }
   };
 
@@ -690,29 +589,10 @@ export default function GoogleAuthButton({
             </span>
           </button>
 
-          {authError ? (
-            <div className="flex flex-col items-end gap-1 max-w-[220px] text-right">
-              <span className="text-[10px] text-rose-500 font-semibold leading-tight animate-pulse">
-                {authError}
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsDirectConnectOpen(true)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-[10px] font-bold text-[#0067c0] dark:text-blue-400 hover:bg-blue-100 transition-all cursor-pointer shadow-2xs"
-              >
-                <Zap className="w-2.5 h-2.5 text-amber-500" />
-                <span>{isAr ? 'ربط الحساب مباشرة ⚡' : 'Connect Account Directly ⚡'}</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsDirectConnectOpen(true)}
-              className="text-[10px] text-slate-400 hover:text-[#0067c0] dark:hover:text-blue-400 transition-colors cursor-pointer flex items-center gap-1 font-medium"
-            >
-              <Shield className="w-2.5 h-2.5" />
-              <span>{isAr ? 'خيارات الربط المباشر' : 'Direct connect options'}</span>
-            </button>
+          {authError && (
+            <span className="text-[10px] text-rose-500 font-semibold leading-tight animate-pulse max-w-[200px] text-right">
+              {authError}
+            </span>
           )}
         </div>
       )}
@@ -958,267 +838,6 @@ export default function GoogleAuthButton({
               <LogOut className="w-4 h-4" />
               <span>{isAr ? 'قطع الاتصال وتسجيل الخروج' : 'Disconnect & Sign Out'}</span>
             </button>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* DIRECT GOOGLE CONNECT MODAL -> 100% reliable login for Netlify, custom domains, and mobile */}
-      {isMounted && typeof document !== 'undefined' && isDirectConnectOpen && createPortal(
-        <div
-          dir={isAr ? 'rtl' : 'ltr'}
-          className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
-          onClick={() => setIsDirectConnectOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-md my-auto rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#0a1520] text-slate-900 dark:text-slate-100 shadow-2xl p-5 sm:p-6 space-y-4 font-sans text-left animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-center p-1.5 shrink-0">
-                  <svg className="w-full h-full" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                    {isAr ? 'ربط حساب Google' : 'Connect Google Account'}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {isAr ? 'تسجيل دخول موثوق وسريع بدون انقطاع' : 'Reliable, guaranteed Google authentication'}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsDirectConnectOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                aria-label={isAr ? 'إغلاق' : 'Close'}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Netlify / Domain Notification Banner */}
-            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2 leading-relaxed">
-              <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-semibold text-[11px]">
-                  {isAr
-                    ? 'خاص بنطاق Netlify (islamheroes.netlify.app):'
-                    : 'Notice for Netlify domain (islamheroes.netlify.app):'}
-                </p>
-                <p className="text-[10.5px] text-slate-600 dark:text-slate-300">
-                  {isAr
-                    ? 'تتطلب النوافذ المنبثقة لـ Google إضافة النطاق في إعدادات Firebase. يمكنك تسجيل الدخول المباشر أدناه في ثوانٍ!'
-                    : 'Google popups require adding this domain to Firebase Console. You can connect directly below in seconds!'}
-                </p>
-              </div>
-            </div>
-
-            {/* Tab Selector: Admin vs Any User */}
-            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => {
-                  setDirectActiveTab('admin');
-                  setDirectError(null);
-                }}
-                className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  directActiveTab === 'admin'
-                    ? 'bg-white dark:bg-[#0c1825] text-amber-600 dark:text-amber-400 shadow-xs'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
-                }`}
-              >
-                <Crown className="w-3.5 h-3.5" />
-                <span>{isAr ? 'المشرف (Wasim)' : 'Admin (Wasim)'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setDirectActiveTab('user');
-                  setDirectError(null);
-                }}
-                className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  directActiveTab === 'user'
-                    ? 'bg-white dark:bg-[#0c1825] text-[#0067c0] dark:text-blue-400 shadow-xs'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
-                }`}
-              >
-                <Mail className="w-3.5 h-3.5" />
-                <span>{isAr ? 'مستخدم Google' : 'Google User'}</span>
-              </button>
-            </div>
-
-            {/* TAB 1: ADMIN CONNECTION */}
-            {directActiveTab === 'admin' && (
-              <form onSubmit={handleDirectAdminSubmit} className="space-y-3.5 pt-1">
-                <div className="flex items-center gap-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20">
-                  <div className="relative w-11 h-11 rounded-full overflow-hidden border-2 border-amber-500 shrink-0 shadow-xs">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="https://unavatar.io/tcoderex@gmail.com"
-                      alt="Wasim dorboz"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <span>Wasim dorboz</span>
-                      <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
-                    </h4>
-                    <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
-                      tcoderex@gmail.com
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-amber-500" />
-                    <span>{isAr ? 'رمز مرور المشرف (Passcode)' : 'Admin Passcode'}</span>
-                  </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={10}
-                    value={directPasscode}
-                    onChange={(e) => {
-                      setDirectPasscode(e.target.value);
-                      setDirectError(null);
-                    }}
-                    placeholder={isAr ? 'أدخل رمز المرور 0001' : 'Enter Passcode 0001'}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#050c14] text-slate-900 dark:text-white text-sm focus:outline-hidden focus:ring-2 focus:ring-amber-500/50"
-                    autoFocus
-                  />
-                  <p className="text-[10px] text-slate-400">
-                    {isAr
-                      ? 'الرمز السري المخصص لمشرف التطبيق (0001)'
-                      : 'Special secret passcode for app admin (0001)'}
-                  </p>
-                </div>
-
-                {directError && (
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold">
-                    {directError}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={directIsSubmitting}
-                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-                >
-                  {directIsSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Crown className="w-4 h-4" />
-                  )}
-                  <span>
-                    {isAr ? 'ربط وتفعيل حساب المشرف' : 'Connect & Unlock Admin Account'}
-                  </span>
-                </button>
-              </form>
-            )}
-
-            {/* TAB 2: ANY GOOGLE USER */}
-            {directActiveTab === 'user' && (
-              <form onSubmit={handleDirectUserSubmit} className="space-y-3.5 pt-1">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-[#0067c0]" />
-                    <span>{isAr ? 'بريد Google (Gmail)' : 'Google Email (Gmail)'}</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={directEmail}
-                    onChange={(e) => {
-                      setDirectEmail(e.target.value);
-                      setDirectError(null);
-                    }}
-                    placeholder="example@gmail.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#050c14] text-slate-900 dark:text-white text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/50"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Pencil className="w-3.5 h-3.5 text-[#0067c0]" />
-                    <span>{isAr ? 'اسم العرض العام' : 'Public Display Name'}</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={directName}
-                    onChange={(e) => {
-                      setDirectName(e.target.value);
-                      setDirectError(null);
-                    }}
-                    placeholder={isAr ? 'اسمك الكريم' : 'Your display name'}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#050c14] text-slate-900 dark:text-white text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/50"
-                  />
-                </div>
-
-                {directError && (
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold">
-                    {directError}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={directIsSubmitting}
-                  className="w-full py-2.5 px-4 rounded-xl bg-[#0067c0] hover:bg-[#005fb8] text-white font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-                >
-                  {directIsSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4" />
-                  )}
-                  <span>{isAr ? 'ربط الحساب الآن' : 'Connect Account Now'}</span>
-                </button>
-              </form>
-            )}
-
-            {/* Collapsible Netlify & Firebase Console Setup Tip */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setShowNetlifyInfo(!showNetlifyInfo)}
-                className="w-full flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 hover:text-[#0067c0] font-medium transition-colors cursor-pointer"
-              >
-                <span className="flex items-center gap-1.5">
-                  <HelpCircle className="w-3.5 h-3.5" />
-                  <span>{isAr ? 'كيفية تفعيل النافذة التلقائية في Netlify؟' : 'How to enable 1-click popup on Netlify?'}</span>
-                </span>
-                <span>{showNetlifyInfo ? '▲' : '▼'}</span>
-              </button>
-
-              {showNetlifyInfo && (
-                <div className="mt-2 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-300 space-y-1.5 leading-relaxed">
-                  <p className="font-semibold text-slate-800 dark:text-white">
-                    {isAr ? 'خطوات إضافة النطاق في Firebase:' : 'Steps to add Netlify domain in Firebase:'}
-                  </p>
-                  <ol className="list-decimal list-inside space-y-1 text-[10.5px]">
-                    <li>{isAr ? 'افتح وحدة تحكم Firebase (console.firebase.google.com)' : 'Open Firebase Console (console.firebase.google.com)'}</li>
-                    <li>{isAr ? 'انتقل إلى: Authentication ➔ Settings ➔ Authorized Domains' : 'Navigate to: Authentication ➔ Settings ➔ Authorized Domains'}</li>
-                    <li>{isAr ? 'اضغط "Add Domain" واكتب: islamheroes.netlify.app' : 'Click "Add Domain" and enter: islamheroes.netlify.app'}</li>
-                  </ol>
-                  <p className="text-[10px] text-slate-400 pt-1">
-                    {isAr
-                      ? 'بمجرد إضافتها، ستعمل النافذة المنبثقة التلقائية لـ Google مباشرة دون أي أخطاء نطاق.'
-                      : 'Once added, the 1-click Google popup will work directly on Netlify without domain restrictions.'}
-                  </p>
-                </div>
-              )}
-            </div>
           </div>
         </div>,
         document.body

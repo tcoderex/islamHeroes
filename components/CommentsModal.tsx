@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   UserCheck,
   CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 import { AppTheme } from '@/lib/theme';
 import { CustomCharacter } from '@/components/CharactersView';
@@ -18,6 +19,7 @@ import { parseImagePosition } from '@/lib/imagePosition';
 import { getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import GoogleAuthButton, { GoogleUserProfile } from '@/components/GoogleAuthButton';
+import { getAzharScholarComments } from '@/lib/azhar-scholars-template';
 
 export interface CharacterComment {
   id: string;
@@ -294,6 +296,54 @@ export default function CommentsModal({
     }
   };
 
+  // 1-Click Seed Random Negative Comments (-30) for current character
+  const handleSeedNegativeComments = async () => {
+    if (!character) return;
+    setIsLoading(true);
+    try {
+      const seeds = getAzharScholarComments(character.id, character.name);
+      let addedCount = 0;
+
+      for (const seed of seeds) {
+        try {
+          const res = await fetch('/api/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              characterId: character.id,
+              userName: seed.userName,
+              text: seed.text,
+              suggestedRating: seed.suggestedRating,
+            }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            addedCount++;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // Re-fetch comments
+      const res = await fetch(`/api/comments?characterId=${encodeURIComponent(character.id)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.comments)) {
+        setComments(data.comments);
+        onCommentsUpdatedRef.current?.(character.id, data.comments.length);
+      }
+      onShowToast?.(
+        isAr
+          ? `تمت إضافة 3 تعليقات نقدية عشوائية وتقييمات سالبة بنجاح!`
+          : `Successfully added 3 negative Arabic comments (<0)!`
+      );
+    } catch {
+      onShowToast?.(isAr ? 'فشل إضافة التعليقات النقدية' : 'Failed to seed negative comments');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const formatRelativeTime = (timestamp: number) => {
     const diff = Math.floor((Date.now() - timestamp) / 1000);
     if (diff < 60) return isAr ? 'الآن' : 'Just now';
@@ -504,13 +554,28 @@ export default function CommentsModal({
 
           {/* Comments List */}
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between px-1">
+            <div className="flex items-center justify-between px-1 flex-wrap gap-2">
               <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
                 {isAr ? 'تعليقات المجتمع' : 'Community Comments'}
               </span>
-              <span className="text-[11px] text-slate-400 font-mono">
-                {comments.length} {isAr ? 'تعليق' : 'comments'}
-              </span>
+
+              <div className="flex items-center gap-2">
+                {/* Seed 3 Random Negative Comments (<0) Button */}
+                <button
+                  type="button"
+                  onClick={handleSeedNegativeComments}
+                  disabled={isLoading}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-2xs active:scale-95"
+                  title={isAr ? 'إضافة 3 تعليقات نقدية عشوائية وتقييمات سالبة (-30) لهذه الشخصية' : 'Seed 3 random negative Arabic comments (<0)'}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>{isAr ? 'إضافة تعليقات نقدية (-30)' : 'Seed Negative Comments (-30)'}</span>
+                </button>
+
+                <span className="text-[11px] text-slate-400 font-mono">
+                  {comments.length} {isAr ? 'تعليق' : 'comments'}
+                </span>
+              </div>
             </div>
 
             {isLoading ? (

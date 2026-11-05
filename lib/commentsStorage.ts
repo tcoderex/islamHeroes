@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getSupabase } from '@/lib/supabase';
+import { AZHAR_SCHOLARS_TEMPLATE, getAzharScholarComments } from './azhar-scholars-template';
 
 export interface CharacterComment {
   id: string;
@@ -134,10 +135,53 @@ export async function getComments(characterId?: string): Promise<CharacterCommen
     commentsCache = loadLocalComments();
   }
 
+  // Auto-seed Azhar scholars 3+ Arabic fake user negative comments (< 0) if missing
+  commentsCache = ensureAzharSeedComments(commentsCache, characterId);
+
   if (characterId) {
     return commentsCache.filter((c) => c.characterId === characterId);
   }
   return commentsCache;
+}
+
+function ensureAzharSeedComments(existingComments: CharacterComment[], requestedCharacterId?: string): CharacterComment[] {
+  const list = [...existingComments];
+  const existingCharIds = new Set(list.map((c) => c.characterId));
+
+  // 1. Seed for all 10 default template scholars if missing
+  AZHAR_SCHOLARS_TEMPLATE.forEach((scholar) => {
+    if (!existingCharIds.has(scholar.id)) {
+      const seeds = getAzharScholarComments(scholar.id, scholar.name);
+      seeds.forEach((s, idx) => {
+        list.push({
+          id: `azhar-seed-${scholar.id}-${idx + 1}`,
+          characterId: scholar.id,
+          userName: s.userName,
+          text: s.text,
+          suggestedRating: s.suggestedRating,
+          createdAt: Date.now() - 1000 * 60 * 60 * (idx + 1) * 3,
+        });
+      });
+      existingCharIds.add(scholar.id);
+    }
+  });
+
+  // 2. Also seed for specific requested characterId if it starts with azhar- or has no comments
+  if (requestedCharacterId && !existingCharIds.has(requestedCharacterId) && requestedCharacterId.includes('azhar')) {
+    const seeds = getAzharScholarComments(requestedCharacterId);
+    seeds.forEach((s, idx) => {
+      list.push({
+        id: `azhar-seed-${requestedCharacterId}-${idx + 1}`,
+        characterId: requestedCharacterId,
+        userName: s.userName,
+        text: s.text,
+        suggestedRating: s.suggestedRating,
+        createdAt: Date.now() - 1000 * 60 * 60 * (idx + 1) * 3,
+      });
+    });
+  }
+
+  return list;
 }
 
 /**

@@ -41,7 +41,7 @@ export default function AdminPasswordModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '0001') {
+    if (password === '0011') {
       setError(false);
       setPassword('');
       onSuccess();
@@ -81,11 +81,11 @@ export default function AdminPasswordModal({
               <p className="text-[11px] text-slate-400">
                 {isAdmin
                   ? isAr
-                    ? 'أدخل كلمة المرور 0001 للتعطيل'
-                    : 'Enter passcode 0001 to disable'
+                    ? 'أدخل رمز المرور السري للتعطيل'
+                    : 'Enter admin passcode to disable'
                   : isAr
-                    ? 'أدخل كلمة المرور 0001 للمتابعة'
-                    : 'Enter passcode 0001 to activate'}
+                    ? 'أدخل رمز المرور السري للمتابعة'
+                    : 'Enter admin passcode to activate'}
               </p>
             </div>
           </div>

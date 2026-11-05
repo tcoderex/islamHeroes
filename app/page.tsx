@@ -266,30 +266,11 @@ export default function HomePage() {
   // Restore client-persisted state safely post-hydration and sync with shared server API
   useEffect(() => {
     try {
-      const savedUserStr = localStorage.getItem('heroes_google_user');
-      let savedUserEmail = '';
-      if (savedUserStr) {
-        try {
-          const parsed = JSON.parse(savedUserStr);
-          setCurrentGoogleUser(parsed);
-          savedUserEmail = parsed?.email?.toLowerCase()?.trim() || '';
-        } catch {
-          // ignore
-        }
-      }
-
-      const savedAdmin = localStorage.getItem('heroes_admin_active');
-      // Strictly ONLY tcoderex@gmail.com can have admin active
-      if (savedAdmin === 'true' && savedUserEmail === 'tcoderex@gmail.com') {
-        setIsAdmin(true);
-      } else {
-        setIsAdmin(false);
-        try {
-          localStorage.setItem('heroes_admin_active', 'false');
-        } catch {
-          // ignore
-        }
-      }
+      // Disconnect all users and admin on fresh load to start from zero as requested
+      localStorage.removeItem('heroes_google_user');
+      localStorage.setItem('heroes_admin_active', 'false');
+      setCurrentGoogleUser(null);
+      setIsAdmin(false);
 
       const savedTheme = localStorage.getItem('heroes_app_theme');
       if (savedTheme === 'tgis' || savedTheme === 'ramadan') {
@@ -1707,7 +1688,7 @@ export default function HomePage() {
         </p>
       </footer>
 
-      {/* Admin Passcode Modal (Toggle with 0001) */}
+      {/* Admin Passcode Modal */}
       <AdminPasswordModal
         isOpen={isAdminModalOpen}
         onClose={() => setIsAdminModalOpen(false)}
