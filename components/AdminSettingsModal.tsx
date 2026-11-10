@@ -30,10 +30,30 @@ import {
   Loader2,
   Clock,
   Eye,
+  Mail,
+  Share2,
+  MessageCircle,
+  Save,
+  RotateCcw,
 } from 'lucide-react';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { AZHAR_SCHOLARS_TEMPLATE, getAzharScholarComments } from '@/lib/azhar-scholars-template';
 import { CustomCharacter } from '@/components/CharactersView';
+import {
+  ContactSettings,
+  DEFAULT_CONTACT_SETTINGS,
+  getFacebookHref,
+  getWhatsAppHref,
+} from '@/lib/contactSettingsTypes';
+
+export type AdminSettingsSubTab =
+  | 'theme'
+  | 'contact'
+  | 'template'
+  | 'backup'
+  | 'supabase'
+  | 'users'
+  | 'banned';
 
 interface AdminSettingsModalProps {
   isOpen: boolean;
@@ -49,6 +69,9 @@ interface AdminSettingsModalProps {
   isAr: boolean;
   onRefreshCommentCounts?: () => void;
   onDeactivateAdmin?: () => void;
+  contactSettings?: ContactSettings;
+  onSaveContactSettings?: (settings: ContactSettings) => Promise<boolean>;
+  initialSubTab?: AdminSettingsSubTab;
 }
 
 export default function AdminSettingsModal({
@@ -65,8 +88,11 @@ export default function AdminSettingsModal({
   isAr,
   onRefreshCommentCounts,
   onDeactivateAdmin,
+  contactSettings = DEFAULT_CONTACT_SETTINGS,
+  onSaveContactSettings,
+  initialSubTab,
 }: AdminSettingsModalProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'theme' | 'template' | 'backup' | 'supabase' | 'users' | 'banned'>('theme');
+  const [activeSubTab, setActiveSubTab] = useState<AdminSettingsSubTab>('theme');
   const [showConfirmReplace, setShowConfirmReplace] = useState(false);
   const [isSeedingAzharComments, setIsSeedingAzharComments] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
@@ -74,6 +100,12 @@ export default function AdminSettingsModal({
   const [copiedInserts, setCopiedInserts] = useState(false);
   const [exportCharactersChecked, setExportCharactersChecked] = useState(true);
   const [exportCommentsChecked, setExportCommentsChecked] = useState(true);
+
+  // Contact Links Draft State
+  const [gmailDraft, setGmailDraft] = useState(contactSettings.gmail);
+  const [facebookDraft, setFacebookDraft] = useState(contactSettings.facebook);
+  const [whatsappDraft, setWhatsappDraft] = useState(contactSettings.whatsapp);
+  const [isSavingContact, setIsSavingContact] = useState(false);
 
   // Registered Users State
   const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
@@ -125,8 +157,51 @@ export default function AdminSettingsModal({
     if (isOpen) {
       fetchRegisteredUsers();
       fetchBannedUsers();
+      setGmailDraft(contactSettings.gmail);
+      setFacebookDraft(contactSettings.facebook);
+      setWhatsappDraft(contactSettings.whatsapp);
+      if (initialSubTab) {
+        setActiveSubTab(initialSubTab);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialSubTab, contactSettings.gmail, contactSettings.facebook, contactSettings.whatsapp]);
+
+  const handleSaveContactForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onSaveContactSettings) return;
+
+    setIsSavingContact(true);
+    try {
+      const ok = await onSaveContactSettings({
+        gmail: gmailDraft.trim(),
+        facebook: facebookDraft.trim(),
+        whatsapp: whatsappDraft.trim(),
+        updatedAt: Date.now(),
+      });
+      if (ok) {
+        onShowToast(
+          isAr
+            ? 'تم حفظ روابط التواصل الثلاثة وتحديثها للجميع بنجاح!'
+            : 'Saved Gmail, Facebook, and WhatsApp links for all users!'
+        );
+      } else {
+        onShowToast(isAr ? 'فشل حفظ روابط التواصل' : 'Failed to save contact links');
+      }
+    } finally {
+      setIsSavingContact(false);
+    }
+  };
+
+  const handleResetContactDefaults = () => {
+    setGmailDraft(DEFAULT_CONTACT_SETTINGS.gmail);
+    setFacebookDraft(DEFAULT_CONTACT_SETTINGS.facebook);
+    setWhatsappDraft(DEFAULT_CONTACT_SETTINGS.whatsapp);
+    onShowToast(
+      isAr
+        ? 'تمت استعادة القيم الافتراضية (اضغط حفظ لتطبيقها)'
+        : 'Restored default values (click Save to apply)'
+    );
+  };
 
   const handleBanUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -601,6 +676,23 @@ ON CONFLICT (id) DO UPDATE SET
 
           <button
             type="button"
+            onClick={() => setActiveSubTab('contact')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shrink-0 ${
+              activeSubTab === 'contact'
+                ? isRamadan
+                  ? 'bg-amber-400 text-slate-950 shadow-sm font-bold'
+                  : 'bg-[#0067c0] text-white shadow-sm font-bold'
+                : isRamadan
+                  ? 'text-amber-200/70 hover:text-amber-100 hover:bg-white/5'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <MessageCircle className="w-4 h-4 text-emerald-500" />
+            <span>{isAr ? 'روابط التواصل (3)' : 'Contact Links (3)'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveSubTab('template')}
             className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shrink-0 ${
               activeSubTab === 'template'
@@ -830,7 +922,205 @@ ON CONFLICT (id) DO UPDATE SET
             </div>
           )}
 
-          {/* TAB 2: AZHAR SCHOLARS TEMPLATE */}
+          {/* TAB 2: CONTACT LINKS EDITOR (Gmail, Facebook, WhatsApp) */}
+          {activeSubTab === 'contact' && (
+            <form onSubmit={handleSaveContactForm} className="space-y-4">
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-emerald-500" />
+                  <span>
+                    {isAr
+                      ? 'تعديل خيارات التواصل الثلاثة (Gmail · فيسبوك · واتساب)'
+                      : 'Edit Contact Links (3 Choices)'}
+                  </span>
+                </h3>
+                <p
+                  className={`text-xs mt-1 ${
+                    isRamadan ? 'text-amber-200/60' : 'text-slate-500'
+                  }`}
+                >
+                  {isAr
+                    ? 'عند ضغط المستخدم على رابط التواصل في الصفحة الرئيسية، ستظهر له هذه الخيارات الثلاثة بالترتيب. يتم الحفظ لجميع الزوار فوراً.'
+                    : 'Clicking the contact link on the homepage opens these 3 choices for all visitors. Gmail automatically uses native mobile mail app + web fallback.'}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {/* 1. GMAIL */}
+                <div
+                  className={`p-3.5 rounded-2xl border space-y-2 ${
+                    isRamadan
+                      ? 'border-amber-500/25 bg-[#0e1d2c]'
+                      : 'border-slate-200 bg-slate-50/70'
+                  }`}
+                >
+                  <label className="flex items-center justify-between text-xs font-bold">
+                    <span className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-md bg-red-500/15 text-red-600 flex items-center justify-center font-mono text-[11px]">
+                        1
+                      </span>
+                      <Mail className="w-4 h-4 text-red-500" />
+                      <span>{isAr ? 'الخيار الأول: البريد الإلكتروني (Gmail)' : '1st Choice: Gmail Address'}</span>
+                    </span>
+                  </label>
+                  <input
+                    type="email"
+                    value={gmailDraft}
+                    onChange={(e) => setGmailDraft(e.target.value)}
+                    placeholder="tcoderex@gmail.com"
+                    dir="ltr"
+                    className={`w-full px-3.5 py-2 text-xs sm:text-sm font-mono rounded-xl border outline-none transition-all ${
+                      isRamadan
+                        ? 'border-amber-500/30 bg-[#08121d] text-amber-100 focus:border-amber-400'
+                        : 'border-slate-300 bg-white text-slate-900 focus:border-[#0067c0]'
+                    }`}
+                  />
+                  <p className={`text-[11px] ${isRamadan ? 'text-amber-200/60' : 'text-slate-500'}`}>
+                    {isAr
+                      ? 'يعمل بسلاسة على جميع الهواتف عبر تطبيق البريد الافتراضي أو Gmail ويب.'
+                      : 'Opens native mail app seamlessly on mobile phones, with Gmail Web and Copy options included.'}
+                  </p>
+                </div>
+
+                {/* 2. FACEBOOK */}
+                <div
+                  className={`p-3.5 rounded-2xl border space-y-2 ${
+                    isRamadan
+                      ? 'border-amber-500/25 bg-[#0e1d2c]'
+                      : 'border-slate-200 bg-slate-50/70'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-xs font-bold">
+                      <span className="w-5 h-5 rounded-md bg-[#1877F2]/15 text-[#1877F2] flex items-center justify-center font-mono text-[11px]">
+                        2
+                      </span>
+                      <Share2 className="w-4 h-4 text-[#1877F2]" />
+                      <span>{isAr ? 'الخيار الثاني: رابط فيسبوك (Facebook)' : '2nd Choice: Facebook Link'}</span>
+                    </label>
+                    {getFacebookHref(facebookDraft) && (
+                      <a
+                        href={getFacebookHref(facebookDraft)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-[#1877F2] hover:underline flex items-center gap-1"
+                      >
+                        <span>{isAr ? 'اختبار' : 'Test'}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={facebookDraft}
+                    onChange={(e) => setFacebookDraft(e.target.value)}
+                    placeholder="https://www.facebook.com/share/1CLdpBtDRf/"
+                    dir="ltr"
+                    className={`w-full px-3.5 py-2 text-xs sm:text-sm font-mono rounded-xl border outline-none transition-all ${
+                      isRamadan
+                        ? 'border-amber-500/30 bg-[#08121d] text-amber-100 focus:border-amber-400'
+                        : 'border-slate-300 bg-white text-slate-900 focus:border-[#0067c0]'
+                    }`}
+                  />
+                </div>
+
+                {/* 3. WHATSAPP */}
+                <div
+                  className={`p-3.5 rounded-2xl border space-y-2 ${
+                    isRamadan
+                      ? 'border-amber-500/25 bg-[#0e1d2c]'
+                      : 'border-slate-200 bg-slate-50/70'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-xs font-bold">
+                      <span className="w-5 h-5 rounded-md bg-[#25D366]/15 text-[#16a34a] flex items-center justify-center font-mono text-[11px]">
+                        3
+                      </span>
+                      <MessageCircle className="w-4 h-4 text-[#16a34a]" />
+                      <span>{isAr ? 'الخيار الثالث: رقم أو رابط واتساب (WhatsApp)' : '3rd Choice: WhatsApp Number or Link'}</span>
+                    </label>
+                    {getWhatsAppHref(whatsappDraft) && (
+                      <a
+                        href={getWhatsAppHref(whatsappDraft)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-[#16a34a] hover:underline flex items-center gap-1"
+                      >
+                        <span>{isAr ? 'اختبار' : 'Test'}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={whatsappDraft}
+                    onChange={(e) => setWhatsappDraft(e.target.value)}
+                    placeholder={isAr ? 'مثال: +201012345678 أو https://wa.me/...' : 'e.g. +201012345678 or https://wa.me/...'}
+                    dir="ltr"
+                    className={`w-full px-3.5 py-2 text-xs sm:text-sm font-mono rounded-xl border outline-none transition-all ${
+                      isRamadan
+                        ? 'border-amber-500/30 bg-[#08121d] text-amber-100 focus:border-amber-400'
+                        : 'border-slate-300 bg-white text-slate-900 focus:border-[#0067c0]'
+                    }`}
+                  />
+                  {getWhatsAppHref(whatsappDraft) && (
+                    <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 truncate" dir="ltr">
+                      → {getWhatsAppHref(whatsappDraft)}
+                    </p>
+                  )}
+                  <p className={`text-[11px] ${isRamadan ? 'text-amber-200/60' : 'text-slate-500'}`}>
+                    {isAr
+                      ? 'أدخل رقم الهاتف مع كود الدولة (مثال: 2010...+) ليتم فتح محادثة واتساب مباشرة.'
+                      : 'Enter phone number with country code (e.g. +2010...) or full wa.me URL.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Save / Reset Buttons */}
+              <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                <button
+                  type="submit"
+                  disabled={isSavingContact}
+                  className={`flex-1 min-w-[160px] py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
+                    isRamadan
+                      ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 hover:from-amber-300 hover:to-yellow-400'
+                      : 'bg-[#0067c0] hover:bg-[#005fb8] text-white'
+                  }`}
+                >
+                  {isSavingContact ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  <span>
+                    {isSavingContact
+                      ? isAr
+                        ? 'جاري الحفظ...'
+                        : 'Saving...'
+                      : isAr
+                        ? 'حفظ روابط التواصل'
+                        : 'Save Contact Links'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetContactDefaults}
+                  className={`py-2.5 px-4 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                    isRamadan
+                      ? 'border-amber-500/30 text-amber-200 hover:bg-amber-500/10'
+                      : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>{isAr ? 'استعادة الافتراضي' : 'Reset Defaults'}</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* TAB 3: AZHAR SCHOLARS TEMPLATE */}
           {activeSubTab === 'template' && (
             <div className="space-y-4">
               <div>

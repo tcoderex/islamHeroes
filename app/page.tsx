@@ -13,7 +13,6 @@ import {
   ArrowUpDown,
   Database,
   Mail,
-  ExternalLink,
   Copy,
   Check,
   Volume2,
@@ -24,13 +23,16 @@ import {
   Bell,
   Eye,
   ShieldCheck,
+  MessageCircle,
+  Pencil,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
-import AdminSettingsModal from '@/components/AdminSettingsModal';
+import AdminSettingsModal, { AdminSettingsSubTab } from '@/components/AdminSettingsModal';
 import CharactersView, { CustomCharacter } from '@/components/CharactersView';
 import CharacterPreviewModal, { PreviewableCharacter } from '@/components/CharacterPreviewModal';
 import RepositionPictureModal from '@/components/RepositionPictureModal';
 import CommentsModal from '@/components/CommentsModal';
+import ContactChoicesModal from '@/components/ContactChoicesModal';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
 import Super3DBadge from '@/components/Super3DBadge';
@@ -44,6 +46,11 @@ import { DEFAULT_CHARACTERS } from '@/lib/defaultCharacters';
 import { speakInArabic, stopArabicSpeech, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
 import GoogleAuthButton, { GoogleUserProfile } from '@/components/GoogleAuthButton';
+import {
+  ContactSettings,
+  DEFAULT_CONTACT_SETTINGS,
+  copyToClipboardSafe,
+} from '@/lib/contactSettingsTypes';
 
 export type SortOption = 'rating-desc' | 'rating-asc' | 'name-asc' | 'name-desc';
 
@@ -51,6 +58,9 @@ export default function HomePage() {
   const [lang, setLang] = useState<'en' | 'ar'>('en');
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<AdminSettingsSubTab>('theme');
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [contactSettings, setContactSettings] = useState<ContactSettings>(DEFAULT_CONTACT_SETTINGS);
   const [theme, setTheme] = useState<AppTheme>('tgis');
   const [activeTab, setActiveTab] = useState<'search' | 'characters'>('search');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -87,13 +97,16 @@ export default function HomePage() {
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [speakingCardId, setSpeakingCardId] = useState<string | null>(null);
 
-  const handleCopyEmail = (e: React.MouseEvent) => {
+  const handleCopyEmail = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigator.clipboard.writeText('tcoderex@gmail.com');
-    setCopiedEmail(true);
-    setTimeout(() => setCopiedEmail(false), 2000);
-    showToast(isAr ? 'تم نسخ الإيميل: tcoderex@gmail.com' : 'Copied email: tcoderex@gmail.com');
+    const targetEmail = contactSettings.gmail.trim() || 'tcoderex@gmail.com';
+    const copied = await copyToClipboardSafe(targetEmail);
+    if (copied) {
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
+      showToast(isAr ? `تم نسخ الإيميل: ${targetEmail}` : `Copied email: ${targetEmail}`);
+    }
   };
 
   const handleReadCharacterName = (e: React.MouseEvent, charName: string, id: string) => {
@@ -149,6 +162,48 @@ export default function HomePage() {
       }
     } catch {
       // ignore
+    }
+  };
+
+  // Load shared contact links (Gmail, Facebook, WhatsApp) from server
+  const fetchContactSettings = async () => {
+    try {
+      const res = await fetch('/api/contact-settings');
+      const data = await res.json();
+      if (data.success && data.settings) {
+        setContactSettings(data.settings);
+        try {
+          localStorage.setItem('heroes_contact_settings', JSON.stringify(data.settings));
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // Save updated contact links via Admin Settings
+  const handleSaveContactSettings = async (updated: ContactSettings): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/contact-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      const data = await res.json();
+      if (data.success && data.settings) {
+        setContactSettings(data.settings);
+        try {
+          localStorage.setItem('heroes_contact_settings', JSON.stringify(data.settings));
+        } catch {
+          // ignore
+        }
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
     }
   };
 
@@ -301,13 +356,26 @@ export default function HomePage() {
           setIsLoading(false);
         }
       }
+      // Instant cache restoration for contact settings
+      const savedContactStr = localStorage.getItem('heroes_contact_settings');
+      if (savedContactStr) {
+        try {
+          const parsedContact = JSON.parse(savedContactStr);
+          if (parsedContact && typeof parsedContact === 'object') {
+            setContactSettings(parsedContact);
+          }
+        } catch {
+          // ignore
+        }
+      }
     } catch {
       // ignore localStorage access errors
     }
 
-    // Always fetch latest figures and comments in background to keep Supabase synced
+    // Always fetch latest figures, comments, and contact settings in background
     fetchSharedCharacters();
     fetchCommentCounts();
+    fetchContactSettings();
   }, []);
 
   const showToast = (msg: string) => {
@@ -996,7 +1064,10 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={() => {
+                setSettingsInitialTab('theme');
+                setIsSettingsOpen(true);
+              }}
               className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 isRamadan
                   ? 'text-amber-300 hover:bg-amber-400/10'
@@ -1081,7 +1152,7 @@ export default function HomePage() {
               >
                 {isAr ? 'islamheroes · أبطال الإسلام' : 'islamheroes'}
               </h1>
-              {/* Contact / Removal notice with stylish email preview button */}
+              {/* Contact / Removal notice -> Opens 3 Choices Modal (Gmail, Facebook, WhatsApp) */}
               <div className="flex flex-col items-center justify-center gap-2 max-w-2xl mx-auto mt-2">
                 <p
                   className={`text-xs sm:text-sm leading-relaxed ${
@@ -1089,30 +1160,33 @@ export default function HomePage() {
                   }`}
                 >
                   {isAr
-                    ? 'يمكن إذا أردت الاتصال بي أو حذف شخص عبر الإيميل هذا:'
-                    : 'If you wish, you can contact me or have someone removed via this email:'}
+                    ? 'إذا أردت التواصل معي أو طلب حذف شخصية، اضغط للاختيار من طرق التواصل:'
+                    : 'If you wish, you can contact me or have someone removed via these options:'}
                 </p>
 
-                <div className="inline-flex items-center gap-1.5 p-1 rounded-2xl backdrop-blur-md border shadow-xs transition-all hover:shadow-md">
-                  <a
-                    href={`https://mail.google.com/mail/?view=cm&fs=1&to=tcoderex@gmail.com&su=${encodeURIComponent(
-                      isAr ? 'islamheroes - طلب حذف أو استفسار' : 'islamheroes - Inquiry or Removal Request'
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                <div
+                  className={`inline-flex flex-wrap items-center justify-center gap-1.5 p-1 rounded-2xl backdrop-blur-md border shadow-xs transition-all hover:shadow-md ${
+                    isRamadan
+                      ? 'bg-[#0b1826]/80 border-amber-500/30'
+                      : 'bg-white/75 border-slate-200/80'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setIsContactModalOpen(true)}
+                    className={`inline-flex items-center flex-wrap justify-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
                       isRamadan
                         ? 'bg-[#0f2130] text-amber-200 hover:text-amber-100 hover:bg-[#152e42] border border-amber-500/30 shadow-amber-500/10'
-                        : 'bg-white text-slate-800 hover:bg-red-50/60 border border-slate-200 shadow-2xs hover:border-red-200'
+                        : 'bg-white text-slate-800 hover:bg-blue-50/70 border border-slate-200 shadow-2xs hover:border-blue-300'
                     }`}
                     title={
                       isAr
-                        ? 'فتح مراسلة مباشرة عبر موقع Gmail الرسمي (mail.google.com)'
-                        : 'Open direct whisper on official Gmail website (mail.google.com)'
+                        ? 'اختر طريقة التواصل: Gmail أو Facebook أو WhatsApp'
+                        : 'Choose contact method: Gmail, Facebook, or WhatsApp'
                     }
                   >
                     <span
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
                         isRamadan
                           ? 'bg-amber-400/20 text-amber-300'
                           : 'bg-red-50 text-red-600 border border-red-200/50'
@@ -1120,29 +1194,55 @@ export default function HomePage() {
                     >
                       <Mail className="w-3.5 h-3.5" />
                     </span>
-                    <span className="font-mono tracking-tight font-bold text-xs sm:text-sm">
-                      tcoderex@gmail.com
+                    <span className="font-mono tracking-tight font-bold text-xs sm:text-sm" dir="ltr">
+                      {contactSettings.gmail || (isAr ? 'تواصل معنا' : 'Contact Us')}
                     </span>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 flex items-center gap-1">
-                      <span>Gmail</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
+                    <span
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border flex items-center gap-1 ${
+                        isRamadan
+                          ? 'bg-amber-400/15 text-amber-300 border-amber-400/30'
+                          : 'bg-blue-500/10 text-[#0067c0] border-blue-500/20'
+                      }`}
+                    >
+                      <MessageCircle className="w-2.5 h-2.5" />
+                      <span>{isAr ? '3 خيارات تواصل' : '3 Contact Choices'}</span>
                     </span>
-                  </a>
-
-                  <button
-                    type="button"
-                    onClick={handleCopyEmail}
-                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                      copiedEmail
-                        ? 'bg-emerald-500 text-white'
-                        : isRamadan
-                          ? 'text-amber-300 hover:bg-white/10'
-                          : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-                    }`}
-                    title={isAr ? 'نسخ الإيميل' : 'Copy email address'}
-                  >
-                    {copiedEmail ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
+
+                  {contactSettings.gmail && (
+                    <button
+                      type="button"
+                      onClick={handleCopyEmail}
+                      className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                        copiedEmail
+                          ? 'bg-emerald-500 text-white'
+                          : isRamadan
+                            ? 'text-amber-300 hover:bg-white/10'
+                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                      }`}
+                      title={isAr ? 'نسخ الإيميل' : 'Copy email address'}
+                    >
+                      {copiedEmail ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettingsInitialTab('contact');
+                        setIsSettingsOpen(true);
+                      }}
+                      className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                        isRamadan
+                          ? 'text-amber-300 hover:bg-amber-500/20'
+                          : 'text-amber-600 hover:text-amber-800 hover:bg-amber-50'
+                      }`}
+                      title={isAr ? 'تعديل روابط التواصل (Gmail · فيسبوك · واتساب)' : 'Edit contact links in Admin Settings'}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1769,6 +1869,24 @@ export default function HomePage() {
         isAr={isAr}
         onRefreshCommentCounts={fetchCommentCounts}
         onDeactivateAdmin={handleDeactivateAdmin}
+        contactSettings={contactSettings}
+        onSaveContactSettings={handleSaveContactSettings}
+        initialSubTab={settingsInitialTab}
+      />
+
+      {/* 3-Choices Contact Modal (Gmail mobile/web fixed, Facebook, WhatsApp) */}
+      <ContactChoicesModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+        settings={contactSettings}
+        isAr={isAr}
+        theme={theme}
+        isAdmin={isAdmin}
+        onOpenAdminContactSettings={() => {
+          setSettingsInitialTab('contact');
+          setIsSettingsOpen(true);
+        }}
+        onShowToast={showToast}
       />
 
       {/* Character Preview Modal */}
