@@ -116,8 +116,11 @@ export default function HomePage() {
       setSpeakingCardId(null);
       return;
     }
+    stopArabicSpeech();
     setSpeakingCardId(id);
-    speakInArabic(charName, () => setSpeakingCardId(null));
+    speakInArabic(charName, () => {
+      setSpeakingCardId((prev) => (prev === id ? null : prev));
+    });
   };
 
   // Dynamically detect characters from the active database for suggestions
@@ -769,12 +772,17 @@ export default function HomePage() {
 
   // Open preview modal for character
   const handlePreviewCustomCharacter = (char: CustomCharacter) => {
+    stopArabicSpeech();
+    setSpeakingCardId(null);
     setPreviewCharacter({
       id: char.id,
       name: getLocalizedCharacterName(char.name, isAr),
+      rawName: char.name,
       picture: char.picture,
       rating: char.rating,
       summary: char.description || undefined,
+      imagePosition: char.imagePosition,
+      badgeId: char.badgeId,
     });
   };
 
@@ -1660,7 +1668,9 @@ export default function HomePage() {
                             </h3>
                             <button
                               type="button"
-                              onClick={(e) => handleReadCharacterName(e, getLocalizedCharacterName(char.name, isAr), char.id)}
+                              onClick={(e) =>
+                                handleReadCharacterName(e, getLocalizedCharacterName(char.name, true), char.id)
+                              }
                               className={`p-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
                                 speakingCardId === char.id
                                   ? 'bg-emerald-500 text-white animate-pulse'
@@ -1891,6 +1901,7 @@ export default function HomePage() {
 
       {/* Character Preview Modal */}
       <CharacterPreviewModal
+        key={previewCharacter?.id || 'closed'}
         character={previewCharacter}
         onClose={() => setPreviewCharacter(null)}
         isAr={isAr}

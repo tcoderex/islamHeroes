@@ -126,12 +126,13 @@ export default function CharactersView({
       setIsSpeakingName(null);
       return;
     }
+    stopArabicSpeech();
     setIsSpeakingName(idKey);
     const ok = speakInArabic(targetName, () => {
-      setIsSpeakingName(null);
+      setIsSpeakingName((prev) => (prev === idKey ? null : prev));
     });
     if (!ok) {
-      setIsSpeakingName(null);
+      setIsSpeakingName((prev) => (prev === idKey ? null : prev));
       onShowToast?.(
         isAr
           ? 'عذراً، محرك النطق الصوتي غير متاح في المتصفح'
@@ -1290,7 +1291,7 @@ export default function CharactersView({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleReadName(getLocalizedCharacterName(char.name, isAr), char.id);
+                          handleReadName(getLocalizedCharacterName(char.name, true), char.id);
                         }}
                         className={`p-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
                           isSpeakingName === char.id

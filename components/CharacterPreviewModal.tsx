@@ -13,6 +13,7 @@ import { parseImagePosition } from '@/lib/imagePosition';
 export interface PreviewableCharacter {
   id: string;
   name: string;
+  rawName?: string;
   secondaryName?: string;
   title?: string;
   era?: string;
@@ -44,11 +45,14 @@ export default function CharacterPreviewModal({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showBadgeInfo, setShowBadgeInfo] = useState(false);
 
+  const activeCharId = character?.id ?? null;
+
   useEffect(() => {
+    stopArabicSpeech();
     return () => {
       stopArabicSpeech();
     };
-  }, []);
+  }, [activeCharId]);
 
   const handleClose = () => {
     stopArabicSpeech();
@@ -59,6 +63,7 @@ export default function CharacterPreviewModal({
   if (!character) return null;
 
   const displayName = getLocalizedCharacterName(character.name, isAr);
+  const speechName = getLocalizedCharacterName(character.rawName || character.name, true);
   const rating = character.rating ?? 1000;
   const tier = getRatingTier(rating);
 
@@ -175,8 +180,11 @@ export default function CharacterPreviewModal({
                         setIsSpeaking(false);
                         return;
                       }
+                      stopArabicSpeech();
                       setIsSpeaking(true);
-                      speakInArabic(displayName, () => setIsSpeaking(false));
+                      speakInArabic(speechName || displayName, () => {
+                        setIsSpeaking(false);
+                      });
                     }}
                     className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
                       isSpeaking
