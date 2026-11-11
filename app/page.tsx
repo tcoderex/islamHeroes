@@ -26,6 +26,7 @@ import {
   MessageCircle,
   Pencil,
   Ban,
+  Compass,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal, { AdminSettingsSubTab } from '@/components/AdminSettingsModal';
@@ -40,9 +41,10 @@ import Super3DBadge from '@/components/Super3DBadge';
 import BadgePickerModal from '@/components/BadgePickerModal';
 import BadgeInfoModal from '@/components/BadgeInfoModal';
 import NotificationsModal from '@/components/NotificationsModal';
+import AlignmentTiersModal from '@/components/AlignmentTiersModal';
 import RedXOverlay, { isRedXEligible } from '@/components/RedXOverlay';
 import { getSavedNotifications, pushNotification } from '@/lib/notifications';
-import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
+import { getRatingTier, getRatingTierByKey, RatingTierKey, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme, THEMES } from '@/lib/theme';
 import { DEFAULT_CHARACTERS } from '@/lib/defaultCharacters';
 import { speakInArabic, stopArabicSpeech, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
@@ -79,6 +81,9 @@ export default function HomePage() {
   // Search view state
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('rating-desc');
+  const [tierFilter, setTierFilter] = useState<RatingTierKey | 'all'>('all');
+  const [isTierGuideOpen, setIsTierGuideOpen] = useState<boolean>(false);
+  const [focusedTierRating, setFocusedTierRating] = useState<number | null>(null);
   const [searchPage, setSearchPage] = useState<number>(1);
   const SEARCH_ITEMS_PER_PAGE = 6;
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -861,6 +866,9 @@ export default function HomePage() {
         return nameMatch || descMatch;
       });
     }
+    if (tierFilter !== 'all') {
+      list = list.filter((c) => getRatingTier(c.rating).key === tierFilter);
+    }
     return list.sort((a, b) => {
       if (sortBy === 'rating-desc') return b.rating - a.rating;
       if (sortBy === 'rating-asc') return a.rating - b.rating;
@@ -870,7 +878,9 @@ export default function HomePage() {
       if (sortBy === 'name-desc') return nameB.localeCompare(nameA, isAr ? 'ar' : 'en');
       return 0;
     });
-  }, [characters, searchQuery, sortBy, isAr]);
+  }, [characters, searchQuery, tierFilter, sortBy, isAr]);
+
+  const activeTierFilterInfo = tierFilter === 'all' ? null : getRatingTierByKey(tierFilter);
 
   const totalSearchPages = Math.max(1, Math.ceil(filteredSearchCharacters.length / SEARCH_ITEMS_PER_PAGE));
   const safeSearchPage = Math.min(Math.max(1, searchPage), totalSearchPages);
@@ -1419,18 +1429,46 @@ export default function HomePage() {
                 isRamadan
                   ? 'bg-[#0c1825]/95 border-amber-500/30 text-amber-50 shadow-[0_8px_30px_rgba(245,158,11,0.08)]'
                   : 'bg-white/90 border-slate-200/80 shadow-[0_4px_20px_rgba(0,103,192,0.06)]'
-              } flex flex-col sm:flex-row items-center justify-between gap-3 text-xs`}
+              } flex flex-col lg:flex-row items-center justify-between gap-3 text-xs`}
             >
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
                 <span className="font-bold text-xs sm:text-sm">
-                  {searchQuery
+                  {searchQuery || activeTierFilterInfo
                     ? isAr
-                      ? `نتائج البحث (${filteredSearchCharacters.length} شخصية)`
-                      : `Search Results (${filteredSearchCharacters.length} figures)`
+                      ? `النتائج (${filteredSearchCharacters.length} شخصية)`
+                      : `Filtered (${filteredSearchCharacters.length} figures)`
                     : isAr
                       ? `جميع الشخصيات (${characters.length})`
                       : `All Figures (${characters.length})`}
                 </span>
+
+                {activeTierFilterInfo && (
+                  <div className="inline-flex items-center gap-1.5">
+                    <HonorBadge
+                      rating={activeTierFilterInfo.presetScore}
+                      tier={activeTierFilterInfo}
+                      isAr={isAr}
+                      size="xs"
+                    />
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${activeTierFilterInfo.badgeGradient}`}
+                    >
+                      <TierIcon tierKey={activeTierFilterInfo.key} tone="on-badge" className="w-3 h-3 shrink-0" />
+                      <span>{isAr ? activeTierFilterInfo.nameAr : activeTierFilterInfo.nameEn}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTierFilter('all');
+                        setSearchPage(1);
+                      }}
+                      className="p-1 rounded-lg bg-rose-500/15 text-rose-500 hover:bg-rose-500/25 transition-colors cursor-pointer"
+                      title={isAr ? 'إلغاء فلتر المرتبة' : 'Clear alignment filter'}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
 
                 {isAdmin && dbStatus?.supabaseConnected && (
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400">
@@ -1441,10 +1479,31 @@ export default function HomePage() {
                 )}
               </div>
 
-              {/* Sort pills */}
-              <div className="flex items-center gap-1">
-                <div className="flex items-center gap-1 text-slate-500 text-[11px] font-medium mr-1">
-                  <ArrowUpDown className="w-3.5 h-3.5 text-[#0067c0]" />
+              {/* 16 Tiers Explorer + Sort pills */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFocusedTierRating(null);
+                    setIsTierGuideOpen(true);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                    tierFilter !== 'all'
+                      ? isRamadan
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-200 hover:bg-amber-500/30'
+                        : 'bg-blue-50 border-[#0067c0] text-[#0067c0] hover:bg-blue-100'
+                      : isRamadan
+                        ? 'bg-[#122436] border-amber-500/30 text-amber-200 hover:bg-[#172e45]'
+                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                  }`}
+                  title={isAr ? 'استعراض وتصفية المراتب الـ16 وأيقوناتها وشعاراتها' : 'Explore & filter all 16 alignment tiers, icons & logos'}
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>{isAr ? 'المراتب (16)' : '16 Tiers'}</span>
+                </button>
+
+                <div className={`flex items-center gap-1 text-[11px] font-medium ${isRamadan ? 'text-amber-200/70' : 'text-slate-500'}`}>
+                  <ArrowUpDown className={`w-3.5 h-3.5 ${isRamadan ? 'text-amber-400' : 'text-[#0067c0]'}`} />
                   <span>{isAr ? 'ترتيب:' : 'Sort:'}</span>
                 </div>
                 <button
@@ -1599,19 +1658,20 @@ export default function HomePage() {
                 {filteredSearchCharacters.length === 0 ? (
                   <div className="col-span-full py-12 text-center bg-white/70 dark:bg-black/30 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-6">
                     <p className="text-xs sm:text-sm text-slate-500 mb-3">
-                      {searchQuery
+                      {searchQuery || activeTierFilterInfo
                         ? isAr
-                          ? `لم يتم العثور على نتائج مطابقة لـ "${searchQuery}"`
-                          : `No figures found matching "${searchQuery}"`
+                          ? 'لم يتم العثور على شخصيات تطابق البحث أو المرتبة المحددة'
+                          : 'No figures found matching the active search or alignment tier.'
                         : isAr
                           ? 'لا توجد شخصيات حتى الآن'
                           : 'No figures found.'}
                     </p>
-                    {searchQuery && (
+                    {(searchQuery || tierFilter !== 'all') && (
                       <button
                         type="button"
                         onClick={() => {
                           setSearchQuery('');
+                          setTierFilter('all');
                           setSearchPage(1);
                         }}
                         className="px-3.5 py-1.5 text-xs font-semibold text-[#0067c0] bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
@@ -1666,11 +1726,15 @@ export default function HomePage() {
                           className="z-10"
                         />
 
-                        {/* Top-left: Honor Badge */}
+                        {/* Top-left: Alignment Crest Logo (Clickable -> 16 Tiers Explorer) */}
                         <HonorBadge
                           rating={char.rating}
                           isAr={isAr}
                           size="md"
+                          onClick={() => {
+                            setFocusedTierRating(char.rating);
+                            setIsTierGuideOpen(true);
+                          }}
                           className="absolute top-3 left-3 sm:top-3.5 sm:left-3.5 z-20"
                         />
 
@@ -1816,7 +1880,7 @@ export default function HomePage() {
                             <span
                               className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-xs shadow-2xs ${charTier.badgeGradient}`}
                             >
-                              <TierIcon tierKey={charTier.key} className="w-3 h-3 shrink-0" />
+                              <TierIcon tierKey={charTier.key} tone="on-badge" className="w-3 h-3 shrink-0" />
                               <span>{isAr ? charTier.nameAr : charTier.nameEn}</span>
                             </span>
                           </div>
@@ -2008,6 +2072,7 @@ export default function HomePage() {
         isAr={isAr}
         isAdmin={isAdmin}
         redXGlobalEnabled={redXGlobalEnabled}
+        theme={theme}
         onOpenBadgePicker={(c) => {
           const full = characters.find((ch) => ch.id === c.id);
           if (full) {
@@ -2107,6 +2172,21 @@ export default function HomePage() {
         onExploreBadge={handleExploreBadge}
         onExploreComment={handleExploreComment}
         isRamadan={isRamadan}
+      />
+
+      {/* 16 Alignment Tiers Explorer & Filter Modal */}
+      <AlignmentTiersModal
+        isOpen={isTierGuideOpen}
+        onClose={() => setIsTierGuideOpen(false)}
+        isAr={isAr}
+        theme={theme}
+        characters={characters}
+        selectedTierKey={tierFilter}
+        onSelectTier={(key) => {
+          setTierFilter(key);
+          setSearchPage(1);
+        }}
+        focusedRating={focusedTierRating}
       />
     </div>
   );

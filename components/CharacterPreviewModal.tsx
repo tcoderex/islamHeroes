@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Volume2, MessageSquare } from 'lucide-react';
-import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
+import { X, Clock, Volume2, MessageSquare, Crown, Skull, Compass } from 'lucide-react';
+import { getRatingTier, TierIcon, formatTierRange } from '@/lib/ratingTiers';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
 import Super3DBadge from '@/components/Super3DBadge';
 import BadgeInfoModal from '@/components/BadgeInfoModal';
+import AlignmentTiersModal from '@/components/AlignmentTiersModal';
 import { speakInArabic, stopArabicSpeech, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
 import RedXOverlay from '@/components/RedXOverlay';
+import { AppTheme } from '@/lib/theme';
 
 export interface PreviewableCharacter {
   id: string;
@@ -34,6 +36,7 @@ interface CharacterPreviewModalProps {
   isAdmin?: boolean;
   onOpenBadgePicker?: (character: PreviewableCharacter) => void;
   redXGlobalEnabled?: boolean;
+  theme?: AppTheme;
 }
 
 export default function CharacterPreviewModal({
@@ -44,10 +47,12 @@ export default function CharacterPreviewModal({
   isAdmin = false,
   onOpenBadgePicker,
   redXGlobalEnabled = true,
+  theme = 'tgis',
 }: CharacterPreviewModalProps) {
   const [imgError, setImgError] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showBadgeInfo, setShowBadgeInfo] = useState(false);
+  const [showTierGuide, setShowTierGuide] = useState(false);
 
   const activeCharId = character?.id ?? null;
 
@@ -104,11 +109,12 @@ export default function CharacterPreviewModal({
 
         {/* Uncropped Photo Viewport: Image fits fully without zooming or cropping */}
         <div className="relative w-full md:w-5/12 h-56 sm:h-64 md:h-auto md:min-h-[380px] bg-slate-950 flex items-center justify-center overflow-hidden p-2 select-none shrink-0">
-          {/* Top-Left Honor Badge */}
+          {/* Top-Left Alignment Logo (Clickable to view all 16 alignments) */}
           <HonorBadge
             rating={rating}
             isAr={isAr}
             size="md"
+            onClick={() => setShowTierGuide(true)}
             className="absolute top-3 left-3 z-30"
           />
 
@@ -209,15 +215,23 @@ export default function CharacterPreviewModal({
                     <Volume2 className="w-4 h-4" />
                   </button>
                 </div>
-                {/* Thematic Tier Badge Pill & Honor Badge */}
+                {/* Thematic Tier Badge Pill & Alignment Logo */}
                 <div className="flex items-center gap-2 shrink-0">
-                  <HonorBadge rating={rating} isAr={isAr} size="sm" />
-                  <div
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shadow-xs ${tier.badgeGradient}`}
+                  <HonorBadge
+                    rating={rating}
+                    isAr={isAr}
+                    size="sm"
+                    onClick={() => setShowTierGuide(true)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTierGuide(true)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shadow-xs cursor-pointer transition-transform hover:scale-105 ${tier.badgeGradient}`}
+                    title={isAr ? 'اضغط لعرض دليل المراتب الـ16' : 'Click to view all 16 alignment tiers'}
                   >
-                    <TierIcon tierKey={tier.key} className="w-3.5 h-3.5" />
+                    <TierIcon tierKey={tier.key} tone="on-badge" className="w-3.5 h-3.5" />
                     <span>{isAr ? tier.nameAr : tier.nameEn}</span>
-                  </div>
+                  </button>
                 </div>
               </div>
 
@@ -244,12 +258,25 @@ export default function CharacterPreviewModal({
 
             {/* Enhanced Character Alignment Rating Box with Character Description */}
             <div className={`p-3.5 ${tier.bgLight} border ${tier.borderColor} rounded-2xl flex flex-col gap-2.5 transition-all`}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-700 flex items-center gap-2">
-                  <TierIcon tierKey={tier.key} className="w-4 h-4" />
-                  <span>{isAr ? 'ميزان الشخصية' : 'Character Alignment'}</span>
-                </span>
-                <div className="flex items-baseline gap-1 font-mono">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <HonorBadge
+                    rating={rating}
+                    isAr={isAr}
+                    size="sm"
+                    onClick={() => setShowTierGuide(true)}
+                  />
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                      <TierIcon tierKey={tier.key} tone="colored" className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{isAr ? tier.nameAr : tier.nameEn}</span>
+                    </span>
+                    <span className="text-[10.5px] text-slate-500 dark:text-slate-400 block truncate">
+                      {isAr ? `الرتبة #${tier.rank} · ${formatTierRange(tier, true)}` : `Rank #${tier.rank} · ${formatTierRange(tier, false)}`}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-1 font-mono shrink-0">
                   <span className={`text-lg font-black tracking-tight ${tier.textColor}`}>
                     {rating > 0 ? `+${rating}` : rating}
                   </span>
@@ -259,24 +286,24 @@ export default function CharacterPreviewModal({
                 </div>
               </div>
 
-              {/* Replaced generic text with character's actual description */}
+              <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                {isAr ? tier.subtitleAr : tier.subtitleEn}
+              </p>
+
+              {/* Character's actual description */}
               {character.summary && (
-                <p className="text-xs text-slate-700 leading-relaxed bg-white/70 p-2.5 rounded-xl border border-slate-200/60 shadow-2xs">
+                <p className="text-xs text-slate-700 leading-relaxed bg-white/80 p-2.5 rounded-xl border border-slate-200/60 shadow-2xs">
                   {character.summary}
                 </p>
               )}
 
-              {/* Dynamic Tier Progress Bar with 5 Color Zones legend */}
+              {/* Dynamic Tier Progress Bar across the full 16-tier spectrum */}
               <div className="space-y-1 pt-1">
                 <div className="relative w-full bg-slate-200/80 h-2.5 rounded-full overflow-hidden p-0.5">
-                  {/* 5-zone background guide */}
-                  <div className="absolute inset-0 flex opacity-25 pointer-events-none">
-                    <div className="w-[25%] bg-purple-600" title="-1000 to -500 (Devil)" />
-                    <div className="w-[25%] bg-rose-500" title="-500 to 0 (Corrupt)" />
-                    <div className="w-[25%] bg-amber-400" title="0 to 500 (Neutral)" />
-                    <div className="w-[17.5%] bg-emerald-500" title="500 to 850 (Virtuous)" />
-                    <div className="w-[7.5%] bg-sky-400" title="850 to 1000 (Angelic)" />
-                  </div>
+                  <div
+                    className="absolute inset-0 opacity-30 pointer-events-none bg-gradient-to-r from-purple-700 via-rose-500 via-amber-400 via-emerald-500 to-sky-400"
+                    aria-hidden="true"
+                  />
 
                   {/* Active fill */}
                   <div
@@ -285,34 +312,54 @@ export default function CharacterPreviewModal({
                   />
                 </div>
 
-                {/* Range Labels with colors matching tiers */}
-                <div className="flex justify-between items-center text-[10px] font-mono px-0.5 text-slate-400">
-                  <span className="text-purple-600 font-semibold" title={isAr ? 'شيطاني (-1000)' : 'Devil (-1000)'}>
-                    -1000 😈
+                {/* Range Labels with Lucide icons */}
+                <div className="flex justify-between items-center text-[10px] font-mono px-0.5 text-slate-500">
+                  <span
+                    className="text-purple-700 font-semibold inline-flex items-center gap-0.5"
+                    title={isAr ? 'طاغية عاتٍ (-1000)' : 'Arch-Tyrant (-1000)'}
+                  >
+                    <Skull className="w-3 h-3" />
+                    <span>-1000</span>
                   </span>
-                  <span className="text-rose-500 font-semibold">-500</span>
+                  <span className="text-rose-600 font-semibold">-500</span>
                   <span className="text-amber-600 font-semibold">0</span>
                   <span className="text-emerald-600 font-semibold">+500</span>
-                  <span className="text-sky-500 font-semibold" title={isAr ? 'ملائكي (+1000)' : 'Angel (+1000)'}>
-                    😇 +1000
+                  <span
+                    className="text-sky-600 font-semibold inline-flex items-center gap-0.5"
+                    title={isAr ? 'نوراني سامٍ (+1000)' : 'Celestial Exemplar (+1000)'}
+                  >
+                    <span>+1000</span>
+                    <Crown className="w-3 h-3" />
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Actions: Community Comments Button & Close Button */}
+            {/* Actions: Community Comments, 16-Tier Guide & Close Button */}
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  handleClose();
-                  onOpenComments?.(character);
-                }}
-                className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-[#0067c0] bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>{isAr ? 'التعليقات' : 'Comments'}</span>
-              </button>
+              <div className="w-full sm:w-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleClose();
+                    onOpenComments?.(character);
+                  }}
+                  className="flex-1 sm:flex-none px-3.5 py-2 text-xs font-bold text-[#0067c0] bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>{isAr ? 'التعليقات' : 'Comments'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowTierGuide(true)}
+                  className="px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  title={isAr ? 'دليل المراتب والشارات (16)' : 'View all 16 Alignment Tiers'}
+                >
+                  <Compass className="w-3.5 h-3.5 text-[#0067c0]" />
+                  <span>{isAr ? 'المراتب (16)' : '16 Tiers'}</span>
+                </button>
+              </div>
 
               <button
                 type="button"
@@ -347,6 +394,15 @@ export default function CharacterPreviewModal({
           }
         />
       )}
+
+      {/* Interactive 16 Alignment Tiers Explorer Modal */}
+      <AlignmentTiersModal
+        isOpen={showTierGuide}
+        onClose={() => setShowTierGuide(false)}
+        isAr={isAr}
+        theme={theme}
+        focusedRating={rating}
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { CustomCharacter } from '@/components/CharactersView';
 import { parseImagePosition } from '@/lib/imagePosition';
 import { getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
+import HonorBadge from '@/components/HonorBadge';
 import GoogleAuthButton, { GoogleUserProfile } from '@/components/GoogleAuthButton';
 import { generateDiverseCommentsForCharacter } from '@/lib/characterCommentsSeed';
 
@@ -410,10 +411,11 @@ export default function CommentsModal({
                 <h3 className="font-bold text-sm sm:text-base truncate tracking-tight text-slate-900 dark:text-white font-sans">
                   {charDisplayName}
                 </h3>
+                <HonorBadge rating={character.rating} isAr={isAr} size="xs" />
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-2xs ${currentCharTier.badgeGradient}`}
                 >
-                  <TierIcon tierKey={currentCharTier.key} className="w-3 h-3" />
+                  <TierIcon tierKey={currentCharTier.key} tone="on-badge" className="w-3 h-3" />
                   <span>{isAr ? currentCharTier.nameAr : currentCharTier.nameEn}</span>
                 </span>
               </div>

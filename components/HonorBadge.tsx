@@ -2,100 +2,96 @@
 
 import React from 'react';
 import Image from 'next/image';
+import { getRatingTier, formatTierRange, RatingTierInfo, RatingTierKey } from '@/lib/ratingTiers';
 
-export type HonorTier = 'angel' | 'islamic-leader' | null;
+export type HonorTier = RatingTierKey;
 
 /**
- * Determines honor tier based on character rating:
- * - rating > 750: 'angel' (Best Trusted People)
- * - rating > 500 && rating <= 750: 'islamic-leader' (Islamic Leader Gift Badge)
- * - rating <= 500: null
+ * Resolves alignment tier key for any moral rating (-1000 to +1000).
  */
 export function getHonorTier(rating: number = 0): HonorTier {
-  if (rating > 750) return 'angel';
-  if (rating > 500 && rating <= 750) return 'islamic-leader';
-  return null;
+  return getRatingTier(rating).key;
 }
 
 interface HonorBadgeProps {
   rating: number;
+  tier?: RatingTierInfo;
   isAr?: boolean;
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  onClick?: (tier: RatingTierInfo) => void;
 }
 
 /**
- * Renders ONLY the authentic AI-generated icon on the top-left (no visible text),
- * with glowing rings and rich accessible tooltips.
+ * Renders the bespoke circular alignment medallion logo for EVERY alignment tier (-1000 to +1000),
+ * with glowing metallic/gem rings and localized accessible tooltips.
  */
 export default function HonorBadge({
   rating,
+  tier: tierProp,
   isAr = false,
   className = '',
   size = 'md',
+  onClick,
 }: HonorBadgeProps) {
-  const honor = getHonorTier(rating);
-  if (!honor) return null;
+  const tier = tierProp || getRatingTier(rating);
 
   const sizeClasses =
-    size === 'sm'
-      ? 'w-7 h-7 sm:w-8 sm:h-8'
-      : size === 'lg'
-        ? 'w-11 h-11 sm:w-12 sm:h-12'
-        : 'w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10';
+    size === 'xs'
+      ? 'w-5 h-5'
+      : size === 'sm'
+        ? 'w-7 h-7 sm:w-8 sm:h-8'
+        : size === 'lg'
+          ? 'w-11 h-11 sm:w-12 sm:h-12'
+          : size === 'xl'
+            ? 'w-14 h-14 sm:w-16 sm:h-16'
+            : 'w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10';
 
-  const defaultPosition = className.includes('absolute') || className.includes('fixed') ? '' : 'relative';
+  const defaultPosition =
+    className.includes('absolute') || className.includes('fixed') ? '' : 'relative';
 
-  if (honor === 'angel') {
-    return (
-      <div
-        className={`${defaultPosition} group/honor rounded-full shrink-0 select-none transition-transform duration-200 hover:scale-115 ring-2 ring-sky-300 shadow-[0_0_18px_rgba(56,189,248,0.8),0_4px_12px_rgba(0,0,0,0.7)] overflow-hidden bg-slate-950 ${sizeClasses} ${className}`}
-        title={
-          isAr
-            ? 'وسام أهل الثقة والأمانة (رتبة ملائكية نورانية +750)'
-            : 'Best Trusted People (Angelic Tier 750+)'
-        }
-        aria-label={
-          isAr
-            ? 'وسام أهل الثقة والأمانة الملائكي'
-            : 'Angelic Best Trusted People Badge'
-        }
-      >
-        <Image
-          src="/images/angel_badge.jpg"
-          alt="Angelic Badge"
-          fill
-          sizes="64px"
-          referrerPolicy="no-referrer"
-          className="object-cover"
-        />
-        {/* Subtle celestial shimmer overlay */}
-        <span className="absolute inset-0 rounded-full ring-1 ring-inset ring-white/60 pointer-events-none" />
-      </div>
-    );
-  }
+  const tierTitle = isAr ? tier.nameAr : tier.nameEn;
+  const tierSubtitle = isAr ? tier.subtitleAr : tier.subtitleEn;
+  const rangeLabel = formatTierRange(tier, isAr);
 
-  // Islamic Leader Honor Gift Badge (501 to 750)
   return (
     <div
-      className={`${defaultPosition} group/honor rounded-full shrink-0 select-none transition-transform duration-200 hover:scale-115 ring-2 ring-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.8),0_4px_12px_rgba(0,0,0,0.7)] overflow-hidden bg-slate-950 ${sizeClasses} ${className}`}
-      title={
-        isAr
-          ? 'وسام قائد إسلامي (هدية شرفية +500 إلى 750)'
-          : 'Islamic Leader Honor Gift Badge (500 to 750)'
+      onClick={
+        onClick
+          ? (e) => {
+              e.stopPropagation();
+              onClick(tier);
+            }
+          : undefined
       }
-      aria-label={isAr ? 'وسام قائد إسلامي' : 'Islamic Leader Honor Badge'}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onClick(tier);
+              }
+            }
+          : undefined
+      }
+      className={`${defaultPosition} group/honor rounded-full shrink-0 select-none transition-transform duration-200 hover:scale-110 overflow-hidden bg-slate-950 ${
+        tier.logoRingClass
+      } ${tier.logoShadowClass} ${sizeClasses} ${onClick ? 'cursor-pointer active:scale-95' : ''} ${className}`}
+      title={`${tierTitle} (${rangeLabel}) — ${tierSubtitle}`}
+      aria-label={`${tierTitle} (${rangeLabel})`}
     >
       <Image
-        src="/images/islamic_leader_badge.jpg"
-        alt="Islamic Leader Badge"
+        src={tier.logoSrc}
+        alt={isAr ? tier.logoAltAr : tier.logoAltEn}
         fill
-        sizes="64px"
+        sizes={size === 'xl' ? '80px' : size === 'lg' ? '64px' : '48px'}
         referrerPolicy="no-referrer"
-        className="object-cover"
+        className="object-cover scale-[1.09]"
       />
-      {/* Subtle gold shimmer overlay */}
-      <span className="absolute inset-0 rounded-full ring-1 ring-inset ring-amber-200/60 pointer-events-none" />
+      <span className="absolute inset-0 rounded-full ring-1 ring-inset ring-white/45 pointer-events-none" />
     </div>
   );
 }

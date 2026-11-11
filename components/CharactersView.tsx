@@ -24,8 +24,19 @@ import {
   Eye,
   EyeOff,
   Ban,
+  Compass,
+  Crown,
+  Skull,
+  Scale,
 } from 'lucide-react';
-import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
+import {
+  RATING_TIERS,
+  RatingTierKey,
+  getRatingTier,
+  getRatingTierByKey,
+  formatTierRange,
+  TierIcon,
+} from '@/lib/ratingTiers';
 import { AppTheme } from '@/lib/theme';
 import HonorBadge from './HonorBadge';
 import GlowingScoreBadge from './GlowingScoreBadge';
@@ -33,6 +44,7 @@ import RepositionPictureModal from './RepositionPictureModal';
 import Super3DBadge from './Super3DBadge';
 import BadgePickerModal from './BadgePickerModal';
 import BadgeInfoModal from './BadgeInfoModal';
+import AlignmentTiersModal from './AlignmentTiersModal';
 import RedXOverlay, { isRedXEligible, getRedXClarityPercent } from './RedXOverlay';
 import { convertNameToArabic, speakInArabic, stopArabicSpeech, hasArabicCharacters, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
@@ -111,6 +123,9 @@ export default function CharactersView({
   const [isSpeakingName, setIsSpeakingName] = useState<string | null>(null);
   const [isConvertingName, setIsConvertingName] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<SortOption>('rating-desc');
+  const [tierFilter, setTierFilter] = useState<RatingTierKey | 'all'>('all');
+  const [isTierGuideOpen, setIsTierGuideOpen] = useState(false);
+  const [focusedTierRating, setFocusedTierRating] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const ITEMS_PER_PAGE = 6;
 
@@ -119,6 +134,7 @@ export default function CharactersView({
   const formRef = useRef<HTMLDivElement | null>(null);
 
   const currentTier = getRatingTier(rating);
+  const activeTierFilterInfo = tierFilter === 'all' ? null : getRatingTierByKey(tierFilter);
 
   // Suggested Arabic name in real-time when user types Latin letters (e.g., "abdallah rushdi")
   const suggestedArabicName = useMemo(() => {
@@ -358,6 +374,9 @@ export default function CharactersView({
         return nameMatch || descMatch;
       });
     }
+    if (tierFilter !== 'all') {
+      list = list.filter((c) => getRatingTier(c.rating).key === tierFilter);
+    }
 
     return list.sort((a, b) => {
       if (sortBy === 'rating-desc') return b.rating - a.rating;
@@ -368,7 +387,7 @@ export default function CharactersView({
       if (sortBy === 'name-desc') return nameB.localeCompare(nameA, isAr ? 'ar' : 'en');
       return 0;
     });
-  }, [characters, searchQuery, sortBy, isAr]);
+  }, [characters, searchQuery, tierFilter, sortBy, isAr]);
 
   const handleSortChange = (newSort: SortOption) => {
     setSortBy(newSort);
@@ -541,8 +560,29 @@ export default function CharactersView({
             </p>
           </div>
 
-          {/* Right Action: Add Character */}
-          <div className="flex items-center gap-2">
+          {/* Right Actions: 16 Alignment Tiers Explorer + Add Character */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setFocusedTierRating(null);
+                setIsTierGuideOpen(true);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer active:scale-[0.98] ${
+                tierFilter !== 'all'
+                  ? isRamadan
+                    ? 'bg-amber-500/20 border-amber-400 text-amber-200 hover:bg-amber-500/30'
+                    : 'bg-blue-50 border-[#0067c0] text-[#0067c0] hover:bg-blue-100'
+                  : isRamadan
+                    ? 'bg-[#122436] border-amber-500/30 text-amber-200 hover:bg-[#172e45]'
+                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+              }`}
+              title={isAr ? 'استعراض المراتب الـ16 وأيقوناتها وشعاراتها وتصفية الشخصيات' : 'Browse & filter all 16 alignment tiers, icons & logos'}
+            >
+              <Compass className="w-3.5 h-3.5 shrink-0" />
+              <span>{isAr ? 'المراتب (16)' : '16 Tiers'}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleStartAdd}
@@ -557,6 +597,51 @@ export default function CharactersView({
             </button>
           </div>
         </div>
+
+        {/* Active Alignment Tier Filter Pill */}
+        {activeTierFilterInfo && (
+          <div
+            className={`pt-2 border-t flex flex-wrap items-center justify-between gap-2 text-xs ${
+              isRamadan ? 'border-amber-500/20' : 'border-slate-100'
+            }`}
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={isRamadan ? 'text-amber-200/70' : 'text-slate-500'}>
+                {isAr ? 'المرتبة المحددة:' : 'Active Alignment:'}
+              </span>
+              <HonorBadge
+                rating={activeTierFilterInfo.presetScore}
+                tier={activeTierFilterInfo}
+                isAr={isAr}
+                size="xs"
+              />
+              <span
+                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${activeTierFilterInfo.badgeGradient}`}
+              >
+                <TierIcon tierKey={activeTierFilterInfo.key} tone="on-badge" className="w-3 h-3 shrink-0" />
+                <span>{isAr ? activeTierFilterInfo.nameAr : activeTierFilterInfo.nameEn}</span>
+              </span>
+              <span className={`font-mono text-[11px] ${isRamadan ? 'text-amber-300/80' : 'text-slate-500'}`}>
+                ({filteredAndSortedCharacters.length})
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTierFilter('all');
+                setCurrentPage(1);
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                isRamadan
+                  ? 'bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 border border-rose-500/30'
+                  : 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
+              }`}
+            >
+              <X className="w-3 h-3" />
+              <span>{isAr ? 'إزالة الفلتر' : 'Clear Filter'}</span>
+            </button>
+          </div>
+        )}
 
         {/* Sorting Controls */}
         <div
@@ -943,17 +1028,27 @@ export default function CharactersView({
               </div>
             </div>
 
-            {/* Rating Slider (-1000 to +1000) */}
+            {/* Rating Slider (-1000 to +1000) across 16 Alignment Tiers */}
             <div className={`p-3.5 rounded-xl border ${currentTier.borderColor} ${currentTier.bgLight} transition-all`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <TierIcon tierKey={currentTier.key} className="w-4 h-4" />
-                  <span className="text-xs font-semibold text-slate-800">
-                    {isAr ? currentTier.nameAr : currentTier.nameEn}
-                  </span>
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <HonorBadge rating={rating} tier={currentTier} isAr={isAr} size="sm" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <TierIcon tierKey={currentTier.key} tone="colored" className="w-4 h-4 shrink-0" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                        {isAr ? currentTier.nameAr : currentTier.nameEn}
+                      </span>
+                    </div>
+                    <span className="text-[10.5px] text-slate-500 dark:text-slate-300 block truncate">
+                      {isAr
+                        ? `الرتبة #${currentTier.rank} · ${formatTierRange(currentTier, true)}`
+                        : `Rank #${currentTier.rank} · ${formatTierRange(currentTier, false)}`}
+                    </span>
+                  </div>
                 </div>
                 <span
-                  className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${currentTier.badgeGradient}`}
+                  className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full shrink-0 ${currentTier.badgeGradient}`}
                 >
                   {rating > 0 ? `+${rating}` : rating}
                 </span>
@@ -970,10 +1065,20 @@ export default function CharactersView({
               />
 
               <div className="mt-2 flex items-center justify-between text-[10px] font-mono">
-                <span className="text-purple-600 font-bold" title="-1000 to -751: Demonic">
-                  😈 -1000
+                <span
+                  className="text-purple-700 dark:text-purple-300 font-bold inline-flex items-center gap-1"
+                  title={isAr ? 'طاغية عاتٍ (-1000)' : 'Arch-Tyrant (-1000)'}
+                >
+                  <Skull className="w-3.5 h-3.5" />
+                  <span>-1000</span>
                 </span>
-                <span className="text-slate-500 font-medium" title="-49 to +49: Balanced">⚖️ 0</span>
+                <span
+                  className="text-amber-700 dark:text-amber-300 font-semibold inline-flex items-center gap-1"
+                  title={isAr ? 'متوازن (0)' : 'Balanced (0)'}
+                >
+                  <Scale className="w-3 h-3" />
+                  <span>0</span>
+                </span>
                 <input
                   type="number"
                   min={-1000}
@@ -983,55 +1088,58 @@ export default function CharactersView({
                     const val = Number(e.target.value);
                     setRating(isNaN(val) ? 0 : Math.max(-1000, Math.min(1000, val)));
                   }}
-                  className="w-16 px-1.5 py-0.5 text-center font-mono font-bold text-xs bg-white border border-slate-300 rounded-lg outline-none focus:border-[#0067c0]"
+                  className="w-16 px-1.5 py-0.5 text-center font-mono font-bold text-xs bg-white text-slate-900 border border-slate-300 rounded-lg outline-none focus:border-[#0067c0]"
                 />
-                <span className="text-emerald-600 font-medium">+600</span>
-                <span className="text-sky-500 font-bold" title="850 to 1000: Celestial">
-                  😇 +1000
+                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">+500</span>
+                <span
+                  className="text-sky-600 dark:text-sky-300 font-bold inline-flex items-center gap-1"
+                  title={isAr ? 'نوراني سامٍ (+1000)' : 'Celestial Exemplar (+1000)'}
+                >
+                  <span>+1000</span>
+                  <Crown className="w-3.5 h-3.5" />
                 </span>
               </div>
 
-              {/* Quick Class Selection Presets */}
-              <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-white/10 flex flex-wrap items-center gap-1.5 text-[11px]">
-                <span className="text-[10px] text-slate-400 font-medium">
-                  {isAr ? 'مراتب سريعة:' : 'Quick Classes:'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setRating(950)}
-                  className="px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 hover:bg-sky-200 text-[10px] font-semibold cursor-pointer"
-                >
-                  {isAr ? 'ملائكي (+950)' : 'Celestial (+950)'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRating(700)}
-                  className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-semibold cursor-pointer"
-                >
-                  {isAr ? 'صالح (+700)' : 'Virtuous (+700)'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRating(-30)}
-                  className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 hover:bg-amber-200 text-[10px] font-bold border border-amber-300 cursor-pointer"
-                  title={isAr ? '-30 يقع ضمن المعتدل/المتوازن وليس شريراً' : '-30 is in the Balanced/Moderate tier'}
-                >
-                  {isAr ? 'معتدل (-30)' : 'Moderate (-30)'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRating(-120)}
-                  className="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 text-[10px] font-medium cursor-pointer"
-                >
-                  {isAr ? 'ذو عثرات (-120)' : 'Flawed (-120)'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRating(-850)}
-                  className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 hover:bg-purple-200 text-[10px] font-medium cursor-pointer"
-                >
-                  {isAr ? 'طاغية (-850)' : 'Tyrant (-850)'}
-                </button>
+              {/* Quick 16 Alignment Tier Selector Grid */}
+              <div className="mt-3 pt-2.5 border-t border-slate-200/70 dark:border-white/10 space-y-1.5">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-slate-600 dark:text-slate-300 font-semibold">
+                    {isAr ? 'اختيار سريع من المراتب الـ16 (أيقونة + شعار):' : 'All 16 Alignment Tiers (Icon + Logo):'}
+                  </span>
+                  <span className="text-slate-400 font-mono">{RATING_TIERS.length} ranks</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {RATING_TIERS.map((t) => {
+                    const isSelectedTier = currentTier.key === t.key;
+                    const shortLabel = (isAr ? t.nameAr : t.nameEn).split(' / ')[0];
+                    return (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setRating(t.presetScore)}
+                        className={`px-2 py-1.5 rounded-xl border text-[10.5px] font-semibold flex items-center justify-between gap-1.5 transition-all cursor-pointer ${
+                          isSelectedTier
+                            ? `${t.badgeGradient} border-transparent ring-2 ring-white/50 shadow-xs`
+                            : `${t.presetButtonClass} border`
+                        }`}
+                        title={`${isAr ? t.nameAr : t.nameEn} (${formatTierRange(t, isAr)})`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <HonorBadge rating={t.presetScore} tier={t} isAr={isAr} size="xs" />
+                          <TierIcon
+                            tierKey={t.key}
+                            tone={isSelectedTier ? 'on-badge' : 'colored'}
+                            className="w-3 h-3 shrink-0"
+                          />
+                          <span className="truncate">{shortLabel}</span>
+                        </div>
+                        <span className="font-mono text-[9.5px] opacity-85 shrink-0">
+                          {t.presetScore > 0 ? `+${t.presetScore}` : t.presetScore}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Per-Character Red X Toggle (Shown whenever rating is 0 to -1000) */}
@@ -1201,19 +1309,23 @@ export default function CharactersView({
           {filteredAndSortedCharacters.length === 0 ? (
             <div className="col-span-full py-12 text-center bg-white/70 dark:bg-black/30 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-6">
               <p className="text-xs sm:text-sm text-slate-500 mb-3">
-                {searchQuery
+                {searchQuery || activeTierFilterInfo
                   ? isAr
-                    ? `لم يتم العثور على شخصيات تطابق "${searchQuery}"`
-                    : `No figures found matching "${searchQuery}"`
+                    ? `لم يتم العثور على شخصيات مطابقة للتصفية الحالية`
+                    : `No figures found matching the active search/tier filter`
                   : isAr
                     ? 'لا توجد شخصيات حتى الآن'
                     : 'No characters in database yet.'}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2">
-                {searchQuery && (
+                {(searchQuery || tierFilter !== 'all') && (
                   <button
                     type="button"
-                    onClick={() => handleQueryChange('')}
+                    onClick={() => {
+                      handleQueryChange('');
+                      setTierFilter('all');
+                      setCurrentPage(1);
+                    }}
                     className="px-3.5 py-1.5 text-xs font-semibold text-[#0067c0] bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
                   >
                     {isAr ? 'عرض جميع الشخصيات' : 'Show All Figures'}
@@ -1276,11 +1388,15 @@ export default function CharactersView({
                     className="z-10"
                   />
 
-                  {/* 1. ON PICTURE TOP-LEFT: Honor Badge */}
+                  {/* 1. ON PICTURE TOP-LEFT: Alignment Crest Logo (Clickable -> 16 Tiers Explorer) */}
                   <HonorBadge
                     rating={char.rating}
                     isAr={isAr}
                     size="md"
+                    onClick={() => {
+                      setFocusedTierRating(char.rating);
+                      setIsTierGuideOpen(true);
+                    }}
                     className="absolute top-3 left-3 sm:top-3.5 sm:left-3.5 z-20"
                   />
 
@@ -1443,7 +1559,7 @@ export default function CharactersView({
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-xs shadow-2xs ${charTier.badgeGradient}`}
                       >
-                        <TierIcon tierKey={charTier.key} className="w-3 h-3 shrink-0" />
+                        <TierIcon tierKey={charTier.key} tone="on-badge" className="w-3 h-3 shrink-0" />
                         <span>{isAr ? charTier.nameAr : charTier.nameEn}</span>
                       </span>
                     </div>
@@ -1587,6 +1703,21 @@ export default function CharactersView({
           }}
         />
       )}
+
+      {/* 16 Alignment Tiers Explorer & Filter Modal */}
+      <AlignmentTiersModal
+        isOpen={isTierGuideOpen}
+        onClose={() => setIsTierGuideOpen(false)}
+        isAr={isAr}
+        theme={theme}
+        characters={characters}
+        selectedTierKey={tierFilter}
+        onSelectTier={(key) => {
+          setTierFilter(key);
+          setCurrentPage(1);
+        }}
+        focusedRating={focusedTierRating}
+      />
     </div>
   );
 }
