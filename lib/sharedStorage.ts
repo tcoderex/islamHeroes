@@ -58,13 +58,15 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
             row.id !== '__comments_store__' &&
             row.id !== '__banned_users_store__' &&
             row.id !== '__users_store__' &&
-            row.id !== '__contact_settings_store__'
+            row.id !== '__contact_settings_store__' &&
+            row.id !== '__site_settings_store__'
         );
         if (validRows.length > 0) {
           const mapped: SharedCharacter[] = validRows.map((row) => {
             let desc = row.description ? String(row.description) : undefined;
             let imgPos: string | undefined = row.image_position ? String(row.image_position) : undefined;
             let badgeId: string | undefined = row.badge_id ? String(row.badge_id) : (row.badgeId ? String(row.badgeId) : undefined);
+            let hideRedX: boolean | undefined = row.hide_red_x ? Boolean(row.hide_red_x) : undefined;
             if (desc) {
               const posMatch = desc.match(/\[\[pos:([^\]]+)\]\]/);
               if (posMatch) {
@@ -78,6 +80,13 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
                   desc = desc.replace(/\s*\[\[badge:[^\]]+\]\]/g, '').trim() || undefined;
                 }
               }
+              if (desc) {
+                const noxMatch = desc.match(/\[\[nox:([^\]]+)\]\]/);
+                if (noxMatch) {
+                  hideRedX = noxMatch[1].trim() === '1' || noxMatch[1].trim() === 'true';
+                  desc = desc.replace(/\s*\[\[nox:[^\]]+\]\]/g, '').trim() || undefined;
+                }
+              }
             }
             return {
               id: String(row.id),
@@ -87,6 +96,7 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
               description: desc,
               imagePosition: imgPos,
               badgeId,
+              hideRedX: hideRedX || undefined,
               updatedAt: row.updated_at ? Number(row.updated_at) : Date.now(),
             };
           });
@@ -97,13 +107,20 @@ export async function getSharedCharacters(): Promise<SharedCharacter[]> {
           // Auto-seed Supabase characters table with seed data
           const payload = seed.map((c) => {
             let desc = c.description
-              ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').replace(/\s*\[\[badge:[^\]]+\]\]/g, '').trim()
+              ? c.description
+                  .replace(/\s*\[\[pos:[^\]]+\]\]/g, '')
+                  .replace(/\s*\[\[badge:[^\]]+\]\]/g, '')
+                  .replace(/\s*\[\[nox:[^\]]+\]\]/g, '')
+                  .trim()
               : '';
             if (c.imagePosition) {
               desc = desc ? `${desc} [[pos:${c.imagePosition}]]` : `[[pos:${c.imagePosition}]]`;
             }
             if (c.badgeId) {
               desc = desc ? `${desc} [[badge:${c.badgeId}]]` : `[[badge:${c.badgeId}]]`;
+            }
+            if (c.hideRedX) {
+              desc = desc ? `${desc} [[nox:1]]` : `[[nox:1]]`;
             }
             return {
               id: c.id,
@@ -180,13 +197,20 @@ export async function saveSharedCharacters(characters: SharedCharacter[]): Promi
     try {
       const payload = characters.map((c) => {
         let desc = c.description
-          ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').replace(/\s*\[\[badge:[^\]]+\]\]/g, '').trim()
+          ? c.description
+              .replace(/\s*\[\[pos:[^\]]+\]\]/g, '')
+              .replace(/\s*\[\[badge:[^\]]+\]\]/g, '')
+              .replace(/\s*\[\[nox:[^\]]+\]\]/g, '')
+              .trim()
           : '';
         if (c.imagePosition) {
           desc = desc ? `${desc} [[pos:${c.imagePosition}]]` : `[[pos:${c.imagePosition}]]`;
         }
         if (c.badgeId) {
           desc = desc ? `${desc} [[badge:${c.badgeId}]]` : `[[badge:${c.badgeId}]]`;
+        }
+        if (c.hideRedX) {
+          desc = desc ? `${desc} [[nox:1]]` : `[[nox:1]]`;
         }
         return {
           id: c.id,

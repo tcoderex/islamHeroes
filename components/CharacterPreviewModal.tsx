@@ -9,6 +9,7 @@ import Super3DBadge from '@/components/Super3DBadge';
 import BadgeInfoModal from '@/components/BadgeInfoModal';
 import { speakInArabic, stopArabicSpeech, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
+import RedXOverlay from '@/components/RedXOverlay';
 
 export interface PreviewableCharacter {
   id: string;
@@ -22,6 +23,7 @@ export interface PreviewableCharacter {
   rating?: number; // -1000 to 1000
   imagePosition?: string;
   badgeId?: string;
+  hideRedX?: boolean;
 }
 
 interface CharacterPreviewModalProps {
@@ -31,6 +33,7 @@ interface CharacterPreviewModalProps {
   onOpenComments?: (character: PreviewableCharacter) => void;
   isAdmin?: boolean;
   onOpenBadgePicker?: (character: PreviewableCharacter) => void;
+  redXGlobalEnabled?: boolean;
 }
 
 export default function CharacterPreviewModal({
@@ -40,6 +43,7 @@ export default function CharacterPreviewModal({
   onOpenComments,
   isAdmin = false,
   onOpenBadgePicker,
+  redXGlobalEnabled = true,
 }: CharacterPreviewModalProps) {
   const [imgError, setImgError] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -160,6 +164,15 @@ export default function CharacterPreviewModal({
               </span>
             </div>
           )}
+
+          {/* Progressive Red X Overlay for ratings 0 to -1000 */}
+          <RedXOverlay
+            rating={rating}
+            hidden={Boolean(character.hideRedX)}
+            globalEnabled={redXGlobalEnabled}
+            size="lg"
+            className="z-20"
+          />
         </div>
 
         {/* Modal Body */}

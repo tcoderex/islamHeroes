@@ -21,6 +21,9 @@ import {
   Sliders,
   MessageSquare,
   Award,
+  Eye,
+  EyeOff,
+  Ban,
 } from 'lucide-react';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme } from '@/lib/theme';
@@ -30,6 +33,7 @@ import RepositionPictureModal from './RepositionPictureModal';
 import Super3DBadge from './Super3DBadge';
 import BadgePickerModal from './BadgePickerModal';
 import BadgeInfoModal from './BadgeInfoModal';
+import RedXOverlay, { isRedXEligible, getRedXClarityPercent } from './RedXOverlay';
 import { convertNameToArabic, speakInArabic, stopArabicSpeech, hasArabicCharacters, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
 
@@ -42,6 +46,7 @@ export interface CustomCharacter {
   updatedAt?: number;
   imagePosition?: string; // CSS object-position, e.g. "50% 65%" or "center top"
   badgeId?: string;
+  hideRedX?: boolean;
 }
 
 interface CharactersViewProps {
@@ -57,6 +62,7 @@ interface CharactersViewProps {
   theme?: AppTheme;
   isAr: boolean;
   isAdmin?: boolean;
+  redXGlobalEnabled?: boolean;
   dbStatus?: {
     provider: 'supabase' | 'netlify-blobs' | 'local';
     supabaseConnected: boolean;
@@ -83,6 +89,7 @@ export default function CharactersView({
   theme = 'tgis',
   isAr,
   isAdmin = true,
+  redXGlobalEnabled = true,
   dbStatus,
   commentsCounts = {},
   onOpenComments,
@@ -95,6 +102,7 @@ export default function CharactersView({
   const [picture, setPicture] = useState('');
   const [rating, setRating] = useState<number>(850);
   const [formImagePosition, setFormImagePosition] = useState<string>('50% 20%');
+  const [formHideRedX, setFormHideRedX] = useState<boolean>(false);
   const [repositioningChar, setRepositioningChar] = useState<CustomCharacter | null>(null);
   const [badgePickerChar, setBadgePickerChar] = useState<CustomCharacter | null>(null);
   const [badgeInfoChar, setBadgeInfoChar] = useState<CustomCharacter | null>(null);
@@ -200,6 +208,7 @@ export default function CharactersView({
     setPicture('');
     setRating(850);
     setFormImagePosition('50% 20%');
+    setFormHideRedX(false);
     setIsAdding(true);
     setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -214,6 +223,7 @@ export default function CharactersView({
     setPicture(char.picture || '');
     setRating(char.rating);
     setFormImagePosition(char.imagePosition || '50% 20%');
+    setFormHideRedX(Boolean(char.hideRedX));
     setIsAdding(true);
     setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -228,6 +238,7 @@ export default function CharactersView({
     setPicture('');
     setRating(850);
     setFormImagePosition('50% 20%');
+    setFormHideRedX(false);
     setIsAdding(false);
   };
 
@@ -305,6 +316,7 @@ export default function CharactersView({
     const boundedRating = Math.max(-1000, Math.min(1000, Number(rating) || 0));
 
     if (editingId) {
+      const existing = characters.find((c) => c.id === editingId);
       onUpdateCharacter?.({
         id: editingId,
         name: name.trim(),
@@ -312,6 +324,8 @@ export default function CharactersView({
         picture: picture.trim(),
         rating: boundedRating,
         imagePosition: formImagePosition || undefined,
+        badgeId: existing?.badgeId,
+        hideRedX: formHideRedX,
       });
     } else {
       onAddCharacter({
@@ -320,6 +334,7 @@ export default function CharactersView({
         picture: picture.trim(),
         rating: boundedRating,
         imagePosition: formImagePosition || undefined,
+        hideRedX: formHideRedX,
       });
     }
 
@@ -854,6 +869,13 @@ export default function CharactersView({
                         style={parseImagePosition(formImagePosition)}
                         className="w-full h-full object-cover"
                       />
+                      <RedXOverlay
+                        rating={rating}
+                        hidden={formHideRedX}
+                        globalEnabled={redXGlobalEnabled}
+                        size="sm"
+                        className="z-10"
+                      />
                     </div>
                     <div>
                       <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
@@ -1011,6 +1033,52 @@ export default function CharactersView({
                   {isAr ? 'طاغية (-850)' : 'Tyrant (-850)'}
                 </button>
               </div>
+
+              {/* Per-Character Red X Toggle (Shown whenever rating is 0 to -1000) */}
+              {isRedXEligible(rating) && (
+                <div className="mt-3 pt-2.5 border-t border-rose-200/70 dark:border-rose-500/20 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-rose-600/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                      <Ban className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-slate-800 dark:text-amber-100 block truncate">
+                        {isAr ? 'علامة X الحمراء على الصورة (0 إلى -1000)' : 'Red X Layer on Picture (0 to -1000)'}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-amber-200/70 block">
+                        {isAr
+                          ? `وضوح العلامة التلقائي حسب التقييم: ${getRedXClarityPercent(rating)}%`
+                          : `Auto clarity intensity for ${rating}: ${getRedXClarityPercent(rating)}%`}
+                        {!redXGlobalEnabled
+                          ? isAr
+                            ? ' (مخفية عالمياً من الإعدادات)'
+                            : ' (Hidden globally in Settings)'
+                          : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormHideRedX((prev) => !prev)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${
+                      !formHideRedX
+                        ? 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    {!formHideRedX ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    <span>
+                      {!formHideRedX
+                        ? isAr
+                          ? 'ظاهرة (إخفاء؟)'
+                          : 'Showing (Hide?)'
+                        : isAr
+                          ? 'مخفية (إظهار؟)'
+                          : 'Hidden (Show?)'}
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="pt-2 flex items-center gap-2">
@@ -1199,6 +1267,15 @@ export default function CharactersView({
                     </div>
                   )}
 
+                  {/* Progressive Red X Overlay for ratings 0 to -1000 */}
+                  <RedXOverlay
+                    rating={char.rating}
+                    hidden={Boolean(char.hideRedX)}
+                    globalEnabled={redXGlobalEnabled}
+                    size="lg"
+                    className="z-10"
+                  />
+
                   {/* 1. ON PICTURE TOP-LEFT: Honor Badge */}
                   <HonorBadge
                     rating={char.rating}
@@ -1219,6 +1296,32 @@ export default function CharactersView({
 
                     {isAdmin && (
                       <div className="flex items-center gap-1 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-2xl border border-white/20 text-white shadow-lg">
+                        {isRedXEligible(char.rating) && onUpdateCharacter && (
+                          <button
+                            type="button"
+                            onClick={() => onUpdateCharacter({ ...char, hideRedX: !char.hideRedX })}
+                            className={`p-1 sm:p-1.5 rounded-xl transition-all cursor-pointer ${
+                              !char.hideRedX
+                                ? 'text-rose-400 hover:text-rose-100 hover:bg-rose-500/30'
+                                : 'text-slate-400 hover:text-white hover:bg-white/20'
+                            }`}
+                            title={
+                              !char.hideRedX
+                                ? isAr
+                                  ? 'إخفاء علامة X الحمراء لهذه الشخصية'
+                                  : 'Hide Red X for this character'
+                                : isAr
+                                  ? 'إظهار علامة X الحمراء لهذه الشخصية'
+                                  : 'Show Red X for this character'
+                            }
+                          >
+                            {!char.hideRedX ? (
+                              <Ban className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            )}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setBadgePickerChar(char)}

@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   MessageCircle,
   Pencil,
+  Ban,
 } from 'lucide-react';
 import AdminPasswordModal from '@/components/AdminPasswordModal';
 import AdminSettingsModal, { AdminSettingsSubTab } from '@/components/AdminSettingsModal';
@@ -39,6 +40,7 @@ import Super3DBadge from '@/components/Super3DBadge';
 import BadgePickerModal from '@/components/BadgePickerModal';
 import BadgeInfoModal from '@/components/BadgeInfoModal';
 import NotificationsModal from '@/components/NotificationsModal';
+import RedXOverlay, { isRedXEligible } from '@/components/RedXOverlay';
 import { getSavedNotifications, pushNotification } from '@/lib/notifications';
 import { getRatingTier, TierIcon } from '@/lib/ratingTiers';
 import { AppTheme, THEMES } from '@/lib/theme';
@@ -72,6 +74,7 @@ export default function HomePage() {
   const [commentsCounts, setCommentsCounts] = useState<Record<string, number>>({});
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [redXGlobalEnabled, setRedXGlobalEnabled] = useState<boolean>(true);
 
   // Search view state
   const [searchQuery, setSearchQuery] = useState('');
@@ -199,6 +202,49 @@ export default function HomePage() {
         setContactSettings(data.settings);
         try {
           localStorage.setItem('heroes_contact_settings', JSON.stringify(data.settings));
+        } catch {
+          // ignore
+        }
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  // Load shared site UI settings (e.g. master Red X toggle)
+  const fetchSiteSettings = async () => {
+    try {
+      const res = await fetch('/api/site-settings');
+      const data = await res.json();
+      if (data.success && data.settings && typeof data.settings.redXGlobalEnabled === 'boolean') {
+        setRedXGlobalEnabled(data.settings.redXGlobalEnabled);
+        try {
+          localStorage.setItem('heroes_site_ui_settings', JSON.stringify(data.settings));
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // Save global Red X master toggle from Admin Settings
+  const handleToggleRedXGlobal = async (enabled: boolean): Promise<boolean> => {
+    setRedXGlobalEnabled(enabled);
+    try {
+      const res = await fetch('/api/site-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redXGlobalEnabled: enabled }),
+      });
+      const data = await res.json();
+      if (data.success && data.settings) {
+        setRedXGlobalEnabled(Boolean(data.settings.redXGlobalEnabled));
+        try {
+          localStorage.setItem('heroes_site_ui_settings', JSON.stringify(data.settings));
         } catch {
           // ignore
         }
@@ -371,14 +417,27 @@ export default function HomePage() {
           // ignore
         }
       }
+      // Instant cache restoration for site UI settings (Red X master toggle)
+      const savedUiStr = localStorage.getItem('heroes_site_ui_settings');
+      if (savedUiStr) {
+        try {
+          const parsedUi = JSON.parse(savedUiStr);
+          if (parsedUi && typeof parsedUi.redXGlobalEnabled === 'boolean') {
+            setRedXGlobalEnabled(parsedUi.redXGlobalEnabled);
+          }
+        } catch {
+          // ignore
+        }
+      }
     } catch {
       // ignore localStorage access errors
     }
 
-    // Always fetch latest figures, comments, and contact settings in background
+    // Always fetch latest figures, comments, contact settings, and UI settings in background
     fetchSharedCharacters();
     fetchCommentCounts();
     fetchContactSettings();
+    fetchSiteSettings();
   }, []);
 
   const showToast = (msg: string) => {
@@ -728,6 +787,8 @@ export default function HomePage() {
           rating: typeof c.rating === 'number' ? c.rating : 0,
           description: c.description || '',
           imagePosition: c.imagePosition,
+          badgeId: c.badgeId,
+          hideRedX: c.hideRedX ? true : undefined,
           updated_at: c.updatedAt || Date.now(),
           updatedAt: c.updatedAt || Date.now(),
         }));
@@ -783,6 +844,7 @@ export default function HomePage() {
       summary: char.description || undefined,
       imagePosition: char.imagePosition,
       badgeId: char.badgeId,
+      hideRedX: char.hideRedX,
     });
   };
 
@@ -1122,6 +1184,7 @@ export default function HomePage() {
             theme={theme}
             isAr={isAr}
             isAdmin={isAdmin}
+            redXGlobalEnabled={redXGlobalEnabled}
             dbStatus={dbStatus}
             commentsCounts={commentsCounts}
             onOpenComments={(char) => setActiveCommentsChar(char)}
@@ -1594,6 +1657,15 @@ export default function HomePage() {
                           </div>
                         )}
 
+                        {/* Progressive Red X Overlay for ratings 0 to -1000 */}
+                        <RedXOverlay
+                          rating={char.rating}
+                          hidden={Boolean(char.hideRedX)}
+                          globalEnabled={redXGlobalEnabled}
+                          size="lg"
+                          className="z-10"
+                        />
+
                         {/* Top-left: Honor Badge */}
                         <HonorBadge
                           rating={char.rating}
@@ -1614,6 +1686,32 @@ export default function HomePage() {
 
                           {isAdmin && (
                             <div className="flex items-center gap-1 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-2xl border border-white/20 text-white shadow-lg">
+                              {isRedXEligible(char.rating) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateCharacter({ ...char, hideRedX: !char.hideRedX })}
+                                  className={`p-1 sm:p-1.5 rounded-xl transition-all cursor-pointer ${
+                                    !char.hideRedX
+                                      ? 'text-rose-400 hover:text-rose-100 hover:bg-rose-500/30'
+                                      : 'text-slate-400 hover:text-white hover:bg-white/20'
+                                  }`}
+                                  title={
+                                    !char.hideRedX
+                                      ? isAr
+                                        ? 'إخفاء علامة X الحمراء لهذه الشخصية'
+                                        : 'Hide Red X for this character'
+                                      : isAr
+                                        ? 'إظهار علامة X الحمراء لهذه الشخصية'
+                                        : 'Show Red X for this character'
+                                  }
+                                >
+                                  {!char.hideRedX ? (
+                                    <Ban className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  ) : (
+                                    <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  )}
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => setRepositioningChar(char)}
@@ -1874,6 +1972,7 @@ export default function HomePage() {
         onAppendCharacters={handleAppendCharacters}
         onReplaceCharacters={handleReplaceCharacters}
         onImportCharacters={handleImportCharacters}
+        onUpdateCharacter={handleUpdateCharacter}
         onExportCharacters={handleExportJSON}
         onShowToast={showToast}
         isAr={isAr}
@@ -1881,6 +1980,8 @@ export default function HomePage() {
         onDeactivateAdmin={handleDeactivateAdmin}
         contactSettings={contactSettings}
         onSaveContactSettings={handleSaveContactSettings}
+        redXGlobalEnabled={redXGlobalEnabled}
+        onToggleRedXGlobal={handleToggleRedXGlobal}
         initialSubTab={settingsInitialTab}
       />
 
@@ -1906,6 +2007,7 @@ export default function HomePage() {
         onClose={() => setPreviewCharacter(null)}
         isAr={isAr}
         isAdmin={isAdmin}
+        redXGlobalEnabled={redXGlobalEnabled}
         onOpenBadgePicker={(c) => {
           const full = characters.find((ch) => ch.id === c.id);
           if (full) {

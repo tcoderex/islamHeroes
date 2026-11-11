@@ -35,14 +35,32 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const payload = charactersToSync.map((c) => ({
-      id: c.id,
-      name: c.name,
-      picture: c.picture || '',
-      rating: c.rating,
-      description: c.description || null,
-      updated_at: c.updatedAt || Date.now(),
-    }));
+    const payload = charactersToSync.map((c) => {
+      let desc = c.description
+        ? c.description
+            .replace(/\s*\[\[pos:[^\]]+\]\]/g, '')
+            .replace(/\s*\[\[badge:[^\]]+\]\]/g, '')
+            .replace(/\s*\[\[nox:[^\]]+\]\]/g, '')
+            .trim()
+        : '';
+      if (c.imagePosition) {
+        desc = desc ? `${desc} [[pos:${c.imagePosition}]]` : `[[pos:${c.imagePosition}]]`;
+      }
+      if (c.badgeId) {
+        desc = desc ? `${desc} [[badge:${c.badgeId}]]` : `[[badge:${c.badgeId}]]`;
+      }
+      if (c.hideRedX) {
+        desc = desc ? `${desc} [[nox:1]]` : `[[nox:1]]`;
+      }
+      return {
+        id: c.id,
+        name: c.name,
+        picture: c.picture || '',
+        rating: c.rating,
+        description: desc || null,
+        updated_at: c.updatedAt || Date.now(),
+      };
+    });
 
     const { error } = await supabase.from('characters').upsert(payload, { onConflict: 'id' });
 

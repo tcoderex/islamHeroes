@@ -30,6 +30,8 @@ import {
   Loader2,
   Clock,
   Eye,
+  EyeOff,
+  Ban,
   Mail,
   Share2,
   MessageCircle,
@@ -37,8 +39,9 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { AppTheme, THEMES } from '@/lib/theme';
-import { AZHAR_SCHOLARS_TEMPLATE, getAzharScholarComments } from '@/lib/azhar-scholars-template';
+import { AZHAR_SCHOLARS_TEMPLATE } from '@/lib/azhar-scholars-template';
 import { CustomCharacter } from '@/components/CharactersView';
+import RedXOverlay, { isRedXEligible, getRedXClarityPercent } from '@/components/RedXOverlay';
 import {
   ContactSettings,
   DEFAULT_CONTACT_SETTINGS,
@@ -49,6 +52,7 @@ import {
 export type AdminSettingsSubTab =
   | 'theme'
   | 'contact'
+  | 'redx'
   | 'template'
   | 'backup'
   | 'supabase'
@@ -64,6 +68,7 @@ interface AdminSettingsModalProps {
   onAppendCharacters: (newChars: CustomCharacter[]) => void;
   onReplaceCharacters: (newChars: CustomCharacter[]) => void;
   onImportCharacters: (imported: CustomCharacter[]) => void;
+  onUpdateCharacter?: (character: CustomCharacter) => void;
   onExportCharacters: (includeCharacters?: boolean, includeComments?: boolean) => void;
   onShowToast: (msg: string) => void;
   isAr: boolean;
@@ -71,6 +76,8 @@ interface AdminSettingsModalProps {
   onDeactivateAdmin?: () => void;
   contactSettings?: ContactSettings;
   onSaveContactSettings?: (settings: ContactSettings) => Promise<boolean>;
+  redXGlobalEnabled?: boolean;
+  onToggleRedXGlobal?: (enabled: boolean) => Promise<boolean>;
   initialSubTab?: AdminSettingsSubTab;
 }
 
@@ -83,6 +90,7 @@ export default function AdminSettingsModal({
   onAppendCharacters,
   onReplaceCharacters,
   onImportCharacters,
+  onUpdateCharacter,
   onExportCharacters,
   onShowToast,
   isAr,
@@ -90,6 +98,8 @@ export default function AdminSettingsModal({
   onDeactivateAdmin,
   contactSettings = DEFAULT_CONTACT_SETTINGS,
   onSaveContactSettings,
+  redXGlobalEnabled = true,
+  onToggleRedXGlobal,
   initialSubTab,
 }: AdminSettingsModalProps) {
   const [activeSubTab, setActiveSubTab] = useState<AdminSettingsSubTab>('theme');
@@ -100,6 +110,11 @@ export default function AdminSettingsModal({
   const [copiedInserts, setCopiedInserts] = useState(false);
   const [exportCharactersChecked, setExportCharactersChecked] = useState(true);
   const [exportCommentsChecked, setExportCommentsChecked] = useState(true);
+
+  // Red X Management State
+  const [redXSearchQuery, setRedXSearchQuery] = useState('');
+  const [redXFilter, setRedXFilter] = useState<'all' | 'visible' | 'hidden'>('all');
+  const [isSavingRedXGlobal, setIsSavingRedXGlobal] = useState(false);
 
   // Contact Links Draft State
   const [gmailDraft, setGmailDraft] = useState(contactSettings.gmail);
@@ -307,9 +322,21 @@ CREATE POLICY "Public Delete Comments" ON public.character_comments FOR DELETE U
 
     const valuesList = characters
       .map((c) => {
-        let desc = c.description ? c.description.replace(/\s*\[\[pos:[^\]]+\]\]/g, '').trim() : '';
+        let desc = c.description
+          ? c.description
+              .replace(/\s*\[\[pos:[^\]]+\]\]/g, '')
+              .replace(/\s*\[\[badge:[^\]]+\]\]/g, '')
+              .replace(/\s*\[\[nox:[^\]]+\]\]/g, '')
+              .trim()
+          : '';
         if (c.imagePosition) {
           desc = desc ? `${desc} [[pos:${c.imagePosition}]]` : `[[pos:${c.imagePosition}]]`;
+        }
+        if (c.badgeId) {
+          desc = desc ? `${desc} [[badge:${c.badgeId}]]` : `[[badge:${c.badgeId}]]`;
+        }
+        if (c.hideRedX) {
+          desc = desc ? `${desc} [[nox:1]]` : `[[nox:1]]`;
         }
         return `  ('${escapeSql(c.id)}', '${escapeSql(c.name)}', '${escapeSql(c.picture || '')}', ${Number(c.rating) || 0}, '${escapeSql(desc)}', ${c.updatedAt || Date.now()})`;
       })
@@ -492,6 +519,8 @@ ON CONFLICT (id) DO UPDATE SET
               picture: typeof item.picture === 'string' ? item.picture.trim() : '',
               rating: typeof item.rating === 'number' && !isNaN(item.rating) ? Math.max(-1000, Math.min(1000, item.rating)) : 500,
               imagePosition: typeof item.imagePosition === 'string' && item.imagePosition.trim() ? item.imagePosition.trim() : undefined,
+              badgeId: typeof item.badgeId === 'string' && item.badgeId.trim() ? item.badgeId.trim() : undefined,
+              hideRedX: item.hideRedX === true ? true : undefined,
               updatedAt: typeof item.updated_at === 'number' ? item.updated_at : typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
             }));
 
@@ -689,6 +718,32 @@ ON CONFLICT (id) DO UPDATE SET
           >
             <MessageCircle className="w-4 h-4 text-emerald-500" />
             <span>{isAr ? 'روابط التواصل (3)' : 'Contact Links (3)'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('redx')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shrink-0 ${
+              activeSubTab === 'redx'
+                ? 'bg-rose-600 text-white shadow-sm font-bold'
+                : isRamadan
+                  ? 'text-rose-300 hover:text-rose-200 hover:bg-white/5'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Ban className={`w-4 h-4 ${activeSubTab === 'redx' ? 'text-white' : 'text-rose-500'}`} />
+            <span className="flex items-center gap-1.5">
+              <span>{isAr ? 'علامة X الحمراء' : 'Red X Layer'}</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                  activeSubTab === 'redx'
+                    ? 'bg-white/25 text-white'
+                    : 'bg-rose-500/20 text-rose-600 dark:text-rose-300'
+                }`}
+              >
+                {characters.filter((c) => isRedXEligible(c.rating)).length}
+              </span>
+            </span>
           </button>
 
           <button
@@ -1119,6 +1174,356 @@ ON CONFLICT (id) DO UPDATE SET
               </div>
             </form>
           )}
+
+          {/* TAB: RED X OVERLAY SETTINGS (0 to -1000 per-character show/hide + master switch) */}
+          {activeSubTab === 'redx' && (() => {
+            const eligibleChars = characters
+              .filter((c) => isRedXEligible(c.rating))
+              .sort((a, b) => a.rating - b.rating);
+            const visibleCount = eligibleChars.filter((c) => !c.hideRedX).length;
+            const hiddenCount = eligibleChars.length - visibleCount;
+
+            const filteredEligible = eligibleChars.filter((c) => {
+              if (redXFilter === 'visible' && c.hideRedX) return false;
+              if (redXFilter === 'hidden' && !c.hideRedX) return false;
+              const q = redXSearchQuery.trim().toLowerCase();
+              if (!q) return true;
+              return (
+                c.name.toLowerCase().includes(q) ||
+                (c.description && c.description.toLowerCase().includes(q))
+              );
+            });
+
+            const handleBulkSetRedX = (hideAll: boolean) => {
+              const updatedList = characters.map((c) => {
+                if (!isRedXEligible(c.rating)) return c;
+                return {
+                  ...c,
+                  hideRedX: hideAll,
+                };
+              });
+              onImportCharacters(updatedList);
+              onShowToast(
+                hideAll
+                  ? isAr
+                    ? `تم إخفاء علامة X الحمراء عن جميع الشخصيات المؤهلة (${eligibleChars.length})`
+                    : `Hidden Red X overlay for all ${eligibleChars.length} eligible characters`
+                  : isAr
+                    ? `تم إظهار علامة X الحمراء لجميع الشخصيات المؤهلة (${eligibleChars.length})`
+                    : `Enabled Red X overlay for all ${eligibleChars.length} eligible characters`
+              );
+            };
+
+            const handleToggleMaster = async () => {
+              if (!onToggleRedXGlobal) return;
+              setIsSavingRedXGlobal(true);
+              try {
+                const nextState = !redXGlobalEnabled;
+                const ok = await onToggleRedXGlobal(nextState);
+                if (ok) {
+                  onShowToast(
+                    nextState
+                      ? isAr
+                        ? 'تم تفعيل طبقة علامة X الحمراء عالمياً للجميع'
+                        : 'Red X overlay layer enabled sitewide'
+                      : isAr
+                        ? 'تم إخفاء طبقة علامة X الحمراء مؤقتاً عن الموقع'
+                        : 'Red X overlay layer temporarily hidden sitewide'
+                  );
+                }
+              } finally {
+                setIsSavingRedXGlobal(false);
+              }
+            };
+
+            return (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                    <Ban className="w-4 h-4" />
+                    <span>
+                      {isAr
+                        ? 'إعدادات علامة X الحمراء على الصور (من 0 إلى -1000)'
+                        : 'Red X Picture Overlay Settings (0 to -1000)'}
+                    </span>
+                  </h3>
+                  <p
+                    className={`text-xs mt-1 ${
+                      isRamadan ? 'text-amber-200/70' : 'text-slate-500'
+                    }`}
+                  >
+                    {isAr
+                      ? 'تظهر علامة X الحمراء تلقائياً فوق صور الشخصيات ذات التقييم من 0 حتى -1000، ويزداد وضوحها وحدّتها كلما اقترب التقييم من -1000. يمكنك إظهار أو إخفاء العلامة لكل شخصية على حدة.'
+                      : 'Characters rated 0 down to -1000 display a progressive Red X overlay that becomes bolder and clearer closer to -1000. Toggle visibility individually per character below.'}
+                  </p>
+                </div>
+
+                {/* Global Master Toggle Card */}
+                <div
+                  className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    redXGlobalEnabled
+                      ? isRamadan
+                        ? 'border-rose-500/40 bg-rose-950/25'
+                        : 'border-rose-200 bg-rose-50/70'
+                      : isRamadan
+                        ? 'border-amber-500/25 bg-[#0e1d2c]'
+                        : 'border-slate-200 bg-slate-50'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 text-xs font-bold">
+                      {redXGlobalEnabled ? (
+                        <Eye className="w-4 h-4 text-rose-600" />
+                      ) : (
+                        <EyeOff className="w-4 h-4 text-slate-500" />
+                      )}
+                      <span>
+                        {isAr ? 'المفتاح الرئيسي لطبقة X الحمراء في الموقع' : 'Global Master Switch (All Pages)'}
+                      </span>
+                    </div>
+                    <p
+                      className={`text-[11px] ${
+                        isRamadan ? 'text-amber-200/70' : 'text-slate-600'
+                      }`}
+                    >
+                      {redXGlobalEnabled
+                        ? isAr
+                          ? 'مفعّل حالياً: تظهر العلامة للشخصيات المفعّلة أدناه.'
+                          : 'Active: Characters enabled below display their proportional Red X.'
+                        : isAr
+                          ? 'متوقف حالياً: جميع علامات X مخفية مؤقتاً عن الزوار دون فقدان إعدادات كل شخصية.'
+                          : 'Paused: All Red X overlays are hidden sitewide while preserving per-character toggles.'}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isSavingRedXGlobal}
+                    onClick={handleToggleMaster}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs ${
+                      redXGlobalEnabled
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {isSavingRedXGlobal ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : redXGlobalEnabled ? (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {redXGlobalEnabled
+                        ? isAr
+                          ? 'إخفاء الكل مؤقتاً'
+                          : 'Disable Master Layer'
+                        : isAr
+                          ? 'تفعيل طبقة X'
+                          : 'Enable Master Layer'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Bulk Show/Hide Controls + Search & Filter */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                    <button
+                      type="button"
+                      disabled={eligibleChars.length === 0}
+                      onClick={() => handleBulkSetRedX(false)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>{isAr ? `إظهار X للكل (${eligibleChars.length})` : `Show All (${eligibleChars.length})`}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={eligibleChars.length === 0}
+                      onClick={() => handleBulkSetRedX(true)}
+                      className={`px-3 py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 ${
+                        isRamadan
+                          ? 'border-amber-500/30 text-amber-200 hover:bg-white/5'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'إخفاء X للكل' : 'Hide All'}</span>
+                    </button>
+                  </div>
+
+                  {eligibleChars.length > 0 && (
+                    <div className="relative w-full sm:w-52">
+                      <input
+                        type="text"
+                        value={redXSearchQuery}
+                        onChange={(e) => setRedXSearchQuery(e.target.value)}
+                        placeholder={isAr ? 'بحث في الشخصيات...' : 'Search figures...'}
+                        className={`w-full px-3 py-1.5 pr-8 text-xs rounded-xl border outline-none ${
+                          isRamadan
+                            ? 'border-amber-500/30 bg-[#08121d] text-amber-100'
+                            : 'border-slate-200 bg-white text-slate-900'
+                        }`}
+                      />
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Filter Pills */}
+                {eligibleChars.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setRedXFilter('all')}
+                      className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                        redXFilter === 'all'
+                          ? 'bg-slate-900 text-white dark:bg-amber-400 dark:text-slate-950'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-amber-200/70'
+                      }`}
+                    >
+                      {isAr ? `الكل (${eligibleChars.length})` : `All (${eligibleChars.length})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRedXFilter('visible')}
+                      className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                        redXFilter === 'visible'
+                          ? 'bg-rose-600 text-white'
+                          : 'bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300'
+                      }`}
+                    >
+                      {isAr ? `ظاهرة (${visibleCount})` : `Showing X (${visibleCount})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRedXFilter('hidden')}
+                      className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                        redXFilter === 'hidden'
+                          ? 'bg-slate-700 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300'
+                      }`}
+                    >
+                      {isAr ? `مخفية (${hiddenCount})` : `Hidden (${hiddenCount})`}
+                    </button>
+                  </div>
+                )}
+
+                {/* Per-Character List */}
+                {eligibleChars.length === 0 ? (
+                  <div className="p-6 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 text-slate-500">
+                    <Ban className="w-8 h-8 mx-auto mb-1.5 text-rose-400 opacity-60" />
+                    <p className="text-xs font-medium">
+                      {isAr
+                        ? 'لا توجد شخصيات بتقييم بين 0 و -1000 حالياً'
+                        : 'No characters currently rated between 0 and -1000'}
+                    </p>
+                  </div>
+                ) : filteredEligible.length === 0 ? (
+                  <div className="p-5 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-500">
+                    {isAr ? 'لا توجد نتائج مطابقة للبحث أو الفلتر' : 'No matching characters for current filter'}
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {filteredEligible.map((char) => {
+                      const isShowingX = !char.hideRedX;
+                      const clarityPct = getRedXClarityPercent(char.rating);
+
+                      return (
+                        <div
+                          key={char.id}
+                          className={`p-2.5 sm:p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                            isRamadan
+                              ? 'border-amber-500/20 bg-[#0e1d2c]'
+                              : 'border-slate-200 bg-white shadow-2xs'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {/* Live Miniature Thumbnail Preview with RedXOverlay */}
+                            <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-200 border border-slate-300 dark:border-white/15 shrink-0">
+                              {char.picture ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={char.picture}
+                                  alt={char.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center font-bold text-sm text-slate-600">
+                                  {char.name.charAt(0)}
+                                </div>
+                              )}
+                              <RedXOverlay
+                                rating={char.rating}
+                                hidden={!isShowingX}
+                                globalEnabled={true}
+                                size="sm"
+                                className="z-10"
+                              />
+                            </div>
+
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`text-xs sm:text-sm font-bold truncate ${
+                                    isRamadan ? 'text-amber-100' : 'text-slate-900'
+                                  }`}
+                                >
+                                  {char.name}
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/25 shrink-0">
+                                  {char.rating}
+                                </span>
+                              </div>
+                              <p
+                                className={`text-[11px] mt-0.5 ${
+                                  isRamadan ? 'text-amber-200/65' : 'text-slate-500'
+                                }`}
+                              >
+                                {isAr
+                                  ? `وضوح علامة X: ${clarityPct}% · ${isShowingX ? 'مفعّلة' : 'مخفية يدوياً'}`
+                                  : `X clarity: ${clarityPct}% · ${isShowingX ? 'Active' : 'Manually hidden'}`}
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onUpdateCharacter?.({
+                                ...char,
+                                hideRedX: isShowingX,
+                              });
+                            }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${
+                              isShowingX
+                                ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700 shadow-xs'
+                                : isRamadan
+                                  ? 'bg-[#13263a] hover:bg-[#19334d] text-amber-200 border-amber-500/30'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            {isShowingX ? (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>{isAr ? 'ظاهرة' : 'Shown'}</span>
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5" />
+                                <span>{isAr ? 'مخفية' : 'Hidden'}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* TAB 3: AZHAR SCHOLARS TEMPLATE */}
           {activeSubTab === 'template' && (
