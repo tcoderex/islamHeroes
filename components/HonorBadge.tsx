@@ -1,8 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import Image from 'next/image';
-import { getRatingTier, formatTierRange, RatingTierInfo, RatingTierKey } from '@/lib/ratingTiers';
+import {
+  getRatingTier,
+  formatTierRange,
+  RatingTierInfo,
+  RatingTierKey,
+  TierIcon,
+} from '@/lib/ratingTiers';
+import FloatingBadgePortal from './FloatingBadgePortal';
 
 export type HonorTier = RatingTierKey;
 
@@ -19,12 +26,13 @@ interface HonorBadgeProps {
   isAr?: boolean;
   className?: string;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  showTooltip?: boolean;
   onClick?: (tier: RatingTierInfo) => void;
 }
 
 /**
  * Renders the bespoke circular alignment medallion logo for EVERY alignment tier (-1000 to +1000),
- * with glowing metallic/gem rings and localized accessible tooltips.
+ * with glowing metallic/gem rings and a smooth viewport-clamped floating hover preview.
  */
 export default function HonorBadge({
   rating,
@@ -32,8 +40,12 @@ export default function HonorBadge({
   isAr = false,
   className = '',
   size = 'md',
+  showTooltip = true,
   onClick,
 }: HonorBadgeProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+
   const tier = tierProp || getRatingTier(rating);
 
   const sizeClasses =
@@ -56,22 +68,37 @@ export default function HonorBadge({
 
   return (
     <div
+      ref={anchorRef}
+      onMouseEnter={() => {
+        if (showTooltip) setIsHovered(true);
+      }}
+      onMouseLeave={() => {
+        if (showTooltip) setIsHovered(false);
+      }}
+      onFocus={() => {
+        if (showTooltip) setIsHovered(true);
+      }}
+      onBlur={() => {
+        if (showTooltip) setIsHovered(false);
+      }}
       onClick={
         onClick
           ? (e) => {
               e.stopPropagation();
+              setIsHovered(false);
               onClick(tier);
             }
           : undefined
       }
       role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      tabIndex={onClick || showTooltip ? 0 : undefined}
       onKeyDown={
         onClick
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 e.stopPropagation();
+                setIsHovered(false);
                 onClick(tier);
               }
             }
@@ -80,7 +107,6 @@ export default function HonorBadge({
       className={`${defaultPosition} group/honor rounded-full shrink-0 select-none transition-transform duration-200 hover:scale-110 overflow-hidden bg-slate-950 ${
         tier.logoRingClass
       } ${tier.logoShadowClass} ${sizeClasses} ${onClick ? 'cursor-pointer active:scale-95' : ''} ${className}`}
-      title={`${tierTitle} (${rangeLabel}) — ${tierSubtitle}`}
       aria-label={`${tierTitle} (${rangeLabel})`}
     >
       <Image
@@ -92,6 +118,48 @@ export default function HonorBadge({
         className="object-cover scale-[1.09]"
       />
       <span className="absolute inset-0 rounded-full ring-1 ring-inset ring-white/45 pointer-events-none" />
+
+      {showTooltip && (
+        <FloatingBadgePortal anchorRef={anchorRef} isOpen={isHovered} isAr={isAr} width={264}>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2.5 border-b border-white/10 pb-2">
+              <div
+                className={`relative w-11 h-11 rounded-full shrink-0 overflow-hidden bg-slate-950 ${tier.logoRingClass} ${tier.logoShadowClass}`}
+              >
+                <Image
+                  src={tier.logoSrc}
+                  alt={isAr ? tier.logoAltAr : tier.logoAltEn}
+                  fill
+                  sizes="56px"
+                  referrerPolicy="no-referrer"
+                  className="object-cover scale-[1.09]"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono text-amber-300/90">
+                  <span>{isAr ? `الرتبة #${tier.rank} من 32` : `Rank #${tier.rank} of 32`}</span>
+                  <span>·</span>
+                  <span>{formatTierRange(tier, false)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <TierIcon tierKey={tier.key} tone="glow" className="w-3.5 h-3.5 shrink-0" />
+                  <p className="font-bold text-xs sm:text-sm text-white truncate">{tierTitle}</p>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11.5px] leading-relaxed text-slate-200">{tierSubtitle}</p>
+
+            {onClick && (
+              <p className="text-[10.5px] font-semibold pt-1.5 border-t border-white/10 text-amber-300/95">
+                {isAr
+                  ? 'انقر لاستعراض المراتب الـ32 وشعاراتها'
+                  : 'Click to explore all 32 alignment tiers'}
+              </p>
+            )}
+          </div>
+        </FloatingBadgePortal>
+      )}
     </div>
   );
 }

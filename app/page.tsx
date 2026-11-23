@@ -1449,6 +1449,7 @@ export default function HomePage() {
                       tier={activeTierFilterInfo}
                       isAr={isAr}
                       size="xs"
+                      showTooltip={false}
                     />
                     <span
                       className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${activeTierFilterInfo.badgeGradient}`}
@@ -1496,10 +1497,10 @@ export default function HomePage() {
                         ? 'bg-[#122436] border-amber-500/30 text-amber-200 hover:bg-[#172e45]'
                         : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                   }`}
-                  title={isAr ? 'استعراض وتصفية المراتب الـ16 وأيقوناتها وشعاراتها' : 'Explore & filter all 16 alignment tiers, icons & logos'}
+                  title={isAr ? 'استعراض وتصفية المراتب الـ32 وأيقوناتها وشعاراتها' : 'Explore & filter all 32 alignment tiers, icons & logos'}
                 >
                   <Compass className="w-3.5 h-3.5" />
-                  <span>{isAr ? 'المراتب (16)' : '16 Tiers'}</span>
+                  <span>{isAr ? 'المراتب (32)' : '32 Tiers'}</span>
                 </button>
 
                 <div className={`flex items-center gap-1 text-[11px] font-medium ${isRamadan ? 'text-amber-200/70' : 'text-slate-500'}`}>
@@ -1788,7 +1789,7 @@ export default function HomePage() {
                                 type="button"
                                 onClick={() => setBadgePickerChar(char)}
                                 className="p-1 sm:p-1.5 rounded-xl text-emerald-400 hover:text-emerald-100 hover:bg-emerald-500/30 transition-all cursor-pointer"
-                                title={isAr ? 'اختيار شارة إسلامية (30 شارة)' : 'Choose Islamic badge (30 badges)'}
+                                title={isAr ? 'اختيار شارة إسلامية (60 شارة)' : 'Choose Islamic badge (60 badges)'}
                               >
                                 <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                               </button>

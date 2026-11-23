@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Star,
   Swords,
@@ -31,8 +31,38 @@ import {
   Flag,
   Globe2,
   Navigation,
+  GraduationCap,
+  Library,
+  BookMarked,
+  ScrollText,
+  Megaphone,
+  Stamp,
+  Brain,
+  Lightbulb,
+  Gavel,
+  Trophy,
+  Medal,
+  Waves,
+  Target,
+  Mountain,
+  MoonStar,
+  Sunrise,
+  HeartHandshake,
+  Droplets,
+  Sprout,
+  Wind,
+  Infinity as InfinityIcon,
+  Orbit,
+  Cpu,
+  Coins,
+  PenTool,
+  Cog,
+  Map,
+  Clock,
+  Leaf,
 } from 'lucide-react';
 import { getCharacterBadge, CharacterBadge } from '@/lib/characterBadges';
+import FloatingBadgePortal from './FloatingBadgePortal';
 
 interface Super3DBadgeProps {
   badgeId?: string | null;
@@ -55,12 +85,17 @@ export default function Super3DBadge({
   showTooltip = true,
   isAdmin = false,
 }: Super3DBadgeProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+
   const badge = badgeProp || getCharacterBadge(badgeId);
   if (!badge) return null;
 
-  // Icon Resolver
+  // Icon Resolver for all 60 Islamic & Historical Honor Badges
   const renderIcon = (sizeClass: string) => {
-    const props = { className: `${sizeClass} ${badge.theme.iconColor} drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]` };
+    const props = {
+      className: `${sizeClass} ${badge.theme.iconColor} drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]`,
+    };
     switch (badge.icon) {
       case 'star':
         return <Star {...props} />;
@@ -122,6 +157,66 @@ export default function Super3DBadge({
         return <Flag {...props} />;
       case 'globe':
         return <Globe2 {...props} />;
+      case 'graduation':
+        return <GraduationCap {...props} />;
+      case 'library':
+        return <Library {...props} />;
+      case 'book-marked':
+        return <BookMarked {...props} />;
+      case 'scroll-text':
+        return <ScrollText {...props} />;
+      case 'shield-check':
+        return <ShieldCheck {...props} />;
+      case 'megaphone':
+        return <Megaphone {...props} />;
+      case 'stamp':
+        return <Stamp {...props} />;
+      case 'brain':
+        return <Brain {...props} />;
+      case 'lightbulb':
+        return <Lightbulb {...props} />;
+      case 'gavel':
+        return <Gavel {...props} />;
+      case 'trophy':
+        return <Trophy {...props} />;
+      case 'medal':
+        return <Medal {...props} />;
+      case 'waves':
+        return <Waves {...props} />;
+      case 'target':
+        return <Target {...props} />;
+      case 'mountain':
+        return <Mountain {...props} />;
+      case 'crescent-star':
+        return <MoonStar {...props} />;
+      case 'sunrise':
+        return <Sunrise {...props} />;
+      case 'handshake':
+        return <HeartHandshake {...props} />;
+      case 'droplets':
+        return <Droplets {...props} />;
+      case 'sprout':
+        return <Sprout {...props} />;
+      case 'wind':
+        return <Wind {...props} />;
+      case 'infinity':
+        return <InfinityIcon {...props} />;
+      case 'orbit':
+        return <Orbit {...props} />;
+      case 'cpu':
+        return <Cpu {...props} />;
+      case 'coins':
+        return <Coins {...props} />;
+      case 'pen-tool':
+        return <PenTool {...props} />;
+      case 'cog':
+        return <Cog {...props} />;
+      case 'map':
+        return <Map {...props} />;
+      case 'clock':
+        return <Clock {...props} />;
+      case 'leaf':
+        return <Leaf {...props} />;
       default:
         return <Star {...props} />;
     }
@@ -154,19 +249,47 @@ export default function Super3DBadge({
 
   const titleText = isAr ? badge.nameAr : badge.nameEn;
   const meaningText = isAr ? badge.meaningAr : badge.meaningEn;
+  const categoryText = isAr ? badge.categoryLabelAr : badge.categoryLabelEn;
 
   return (
     <div
+      ref={anchorRef}
+      onMouseEnter={() => {
+        if (showTooltip) setIsHovered(true);
+      }}
+      onMouseLeave={() => {
+        if (showTooltip) setIsHovered(false);
+      }}
+      onFocus={() => {
+        if (showTooltip) setIsHovered(true);
+      }}
+      onBlur={() => {
+        if (showTooltip) setIsHovered(false);
+      }}
       onClick={(e) => {
         if (onClick) {
           e.stopPropagation();
+          setIsHovered(false);
           onClick();
         }
       }}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick || showTooltip ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsHovered(false);
+                onClick();
+              }
+            }
+          : undefined
+      }
       className={`group/badge ${defaultPosition} select-none ${dimensions.wrapper} ${className} ${
         onClick ? 'cursor-pointer active:scale-95' : ''
       }`}
-      title={`${titleText}: ${meaningText}`}
       aria-label={titleText}
     >
       {/* 1. Deep 3D Outer Ambient Shadow & Jewel Glow */}
@@ -200,32 +323,45 @@ export default function Super3DBadge({
         )}
       </div>
 
-      {/* 7. Hover Interactive Floating Info Tooltip */}
+      {/* 7. Viewport-Clamped Floating Portal Info Card (Escapes overflow-hidden & smooth fade in/out) */}
       {showTooltip && (
-        <div
-          dir={isAr ? 'rtl' : 'ltr'}
-          className={`pointer-events-none absolute bottom-full mb-2.5 ${
-            isAr ? 'right-0' : 'left-0'
-          } z-50 min-w-[190px] max-w-[240px] p-2.5 rounded-2xl bg-slate-950/95 text-white border border-white/20 shadow-[0_12px_30px_rgba(0,0,0,0.8)] backdrop-blur-md opacity-0 group-hover/badge:opacity-100 group-hover/badge:translate-y-0 translate-y-1 transition-all duration-200`}
-        >
-          <div className="flex items-center gap-1.5 font-bold text-xs text-amber-300 border-b border-white/10 pb-1">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
-            <span className="truncate">{titleText}</span>
+        <FloatingBadgePortal anchorRef={anchorRef} isOpen={isHovered} isAr={isAr} width={264}>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2.5 border-b border-white/10 pb-2">
+              <div
+                className={`relative w-10 h-10 rounded-xl shrink-0 bg-gradient-to-br ${badge.theme.bgGradient} ${badge.theme.bevelBorder} ring-1 ring-white/40 flex items-center justify-center overflow-hidden shadow-md`}
+              >
+                <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/50 to-transparent pointer-events-none" />
+                {renderIcon('w-5 h-5 relative z-10')}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/90 block truncate">
+                  {categoryText}
+                </span>
+                <p className="font-bold text-xs sm:text-sm text-amber-300 leading-tight truncate">
+                  {titleText}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-[11.5px] leading-relaxed text-slate-200 font-normal">
+              {meaningText}
+            </p>
+
+            {onClick && (
+              <p className="text-[10.5px] font-semibold pt-1.5 border-t border-white/10 text-amber-300/95">
+                {isAdmin
+                  ? isAr
+                    ? 'انقر لتغيير أو عرض تفاصيل الشارة (مشرف)'
+                    : 'Click to change or inspect badge (Admin)'
+                  : isAr
+                    ? 'انقر لعرض بطاقة تفاصيل الوسام'
+                    : 'Click to view full badge details'}
+              </p>
+            )}
           </div>
-          <p className="text-[11px] leading-snug text-slate-200 mt-1.5 font-normal">
-            {meaningText}
-          </p>
-          {onClick && !isAdmin && (
-            <p className="text-[10px] text-amber-300 font-semibold mt-1 pt-1 border-t border-white/10 flex items-center gap-1">
-              <span>{isAr ? 'انقر لعرض تفاصيل الوسام ℹ️' : 'Click to view badge details ℹ️'}</span>
-            </p>
-          )}
-          {isAdmin && (
-            <p className="text-[10px] text-emerald-400 font-semibold mt-1 pt-1 border-t border-white/10 flex items-center gap-1">
-              <span>{isAr ? 'انقر لعرض أو تغيير الشارة (مشرف)' : 'Click to view or edit badge (Admin)'}</span>
-            </p>
-          )}
-        </div>
+        </FloatingBadgePortal>
       )}
     </div>
   );

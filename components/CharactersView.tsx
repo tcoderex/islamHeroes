@@ -577,10 +577,10 @@ export default function CharactersView({
                     ? 'bg-[#122436] border-amber-500/30 text-amber-200 hover:bg-[#172e45]'
                     : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
               }`}
-              title={isAr ? 'استعراض المراتب الـ16 وأيقوناتها وشعاراتها وتصفية الشخصيات' : 'Browse & filter all 16 alignment tiers, icons & logos'}
+              title={isAr ? 'استعراض المراتب الـ32 وأيقوناتها وشعاراتها وتصفية الشخصيات' : 'Browse & filter all 32 alignment tiers, icons & logos'}
             >
               <Compass className="w-3.5 h-3.5 shrink-0" />
-              <span>{isAr ? 'المراتب (16)' : '16 Tiers'}</span>
+              <span>{isAr ? 'المراتب (32)' : '32 Tiers'}</span>
             </button>
 
             <button
@@ -614,6 +614,7 @@ export default function CharactersView({
                 tier={activeTierFilterInfo}
                 isAr={isAr}
                 size="xs"
+                showTooltip={false}
               />
               <span
                 className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${activeTierFilterInfo.badgeGradient}`}
@@ -1042,8 +1043,8 @@ export default function CharactersView({
                     </div>
                     <span className="text-[10.5px] text-slate-500 dark:text-slate-300 block truncate">
                       {isAr
-                        ? `الرتبة #${currentTier.rank} · ${formatTierRange(currentTier, true)}`
-                        : `Rank #${currentTier.rank} · ${formatTierRange(currentTier, false)}`}
+                        ? `الرتبة #${currentTier.rank} من 32 · ${formatTierRange(currentTier, true)}`
+                        : `Rank #${currentTier.rank}/32 · ${formatTierRange(currentTier, false)}`}
                     </span>
                   </div>
                 </div>
@@ -1100,15 +1101,15 @@ export default function CharactersView({
                 </span>
               </div>
 
-              {/* Quick 16 Alignment Tier Selector Grid */}
+              {/* Quick 32 Alignment Tier Selector Grid */}
               <div className="mt-3 pt-2.5 border-t border-slate-200/70 dark:border-white/10 space-y-1.5">
                 <div className="flex items-center justify-between text-[10px]">
                   <span className="text-slate-600 dark:text-slate-300 font-semibold">
-                    {isAr ? 'اختيار سريع من المراتب الـ16 (أيقونة + شعار):' : 'All 16 Alignment Tiers (Icon + Logo):'}
+                    {isAr ? 'اختيار سريع من المراتب الـ32 (أيقونة + شعار):' : 'All 32 Alignment Tiers (Icon + Logo):'}
                   </span>
                   <span className="text-slate-400 font-mono">{RATING_TIERS.length} ranks</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 max-h-56 overflow-y-auto pr-1">
                   {RATING_TIERS.map((t) => {
                     const isSelectedTier = currentTier.key === t.key;
                     const shortLabel = (isAr ? t.nameAr : t.nameEn).split(' / ')[0];
@@ -1125,7 +1126,7 @@ export default function CharactersView({
                         title={`${isAr ? t.nameAr : t.nameEn} (${formatTierRange(t, isAr)})`}
                       >
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <HonorBadge rating={t.presetScore} tier={t} isAr={isAr} size="xs" />
+                          <HonorBadge rating={t.presetScore} tier={t} isAr={isAr} size="xs" showTooltip={false} />
                           <TierIcon
                             tierKey={t.key}
                             tone={isSelectedTier ? 'on-badge' : 'colored'}
@@ -1442,7 +1443,7 @@ export default function CharactersView({
                           type="button"
                           onClick={() => setBadgePickerChar(char)}
                           className="p-1 sm:p-1.5 rounded-xl text-emerald-400 hover:text-emerald-100 hover:bg-emerald-500/30 transition-all cursor-pointer"
-                          title={isAr ? 'اختيار شارة إسلامية (30 شارة)' : 'Choose Islamic badge (30 badges)'}
+                          title={isAr ? 'اختيار شارة إسلامية (60 شارة)' : 'Choose Islamic badge (60 badges)'}
                         >
                           <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         </button>

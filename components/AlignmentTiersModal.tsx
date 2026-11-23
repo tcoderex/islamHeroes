@@ -119,12 +119,12 @@ export default function AlignmentTiersModal({
             </div>
             <div className="min-w-0">
               <h2 className="text-base sm:text-lg font-bold tracking-tight truncate">
-                {isAr ? 'دليل المراتب والأيقونات والشعارات (16 مرتبة)' : 'Alignment Tiers, Icons & Logos (16 Tiers)'}
+                {isAr ? 'دليل المراتب والأيقونات والشعارات (32 مرتبة)' : 'Alignment Tiers, Icons & Logos (32 Tiers)'}
               </h2>
               <p className={`text-xs truncate ${isRamadan ? 'text-amber-200/70' : 'text-slate-500'}`}>
                 {isAr
-                  ? 'مقياس التقييم الأخلاقي والتاريخي الكامل من +1000 إلى -1000 مع أيقونة وشعار مستقل لكل مرتبة'
-                  : 'Full moral spectrum from +1000 to -1000 — every rank has its own Lucide icon & crest logo'}
+                  ? 'مقياس التقييم الأخلاقي والتاريخي الكامل (32 مرتبة) من +1000 إلى -1000 مع أيقونة وشعار مستقل'
+                  : 'Full 32-tier moral spectrum from +1000 to -1000 — every rank has its own Lucide icon & crest logo'}
               </p>
             </div>
           </div>
@@ -164,7 +164,7 @@ export default function AlignmentTiersModal({
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>{isAr ? 'جميع المراتب (16)' : 'All Tiers (16)'}</span>
+              <span>{isAr ? 'جميع المراتب (32)' : 'All Tiers (32)'}</span>
             </button>
 
             <button
@@ -179,7 +179,7 @@ export default function AlignmentTiersModal({
               }`}
             >
               <Sun className="w-3.5 h-3.5" />
-              <span>{isAr ? 'مراتب النور والفضل (+50..+1000)' : 'Light & Virtue (8)'}</span>
+              <span>{isAr ? 'النور والفضل (16)' : 'Light & Virtue (16)'}</span>
             </button>
 
             <button
@@ -194,7 +194,7 @@ export default function AlignmentTiersModal({
               }`}
             >
               <Scale className="w-3.5 h-3.5" />
-              <span>{isAr ? 'الوسط المتوازن (-49..+49)' : 'Balanced (1)'}</span>
+              <span>{isAr ? 'الوسط المتوازن (2)' : 'Balanced (2)'}</span>
             </button>
 
             <button
@@ -209,7 +209,7 @@ export default function AlignmentTiersModal({
               }`}
             >
               <Flame className="w-3.5 h-3.5" />
-              <span>{isAr ? 'مراتب الجدل والطغيان (-50..-1000)' : 'Disputed & Tyranny (7)'}</span>
+              <span>{isAr ? 'الجدل والطغيان (14)' : 'Disputed & Tyranny (14)'}</span>
             </button>
           </div>
 
@@ -255,7 +255,7 @@ export default function AlignmentTiersModal({
                 }`}
               >
                 {/* Alignment Crest Logo */}
-                <HonorBadge rating={tier.presetScore} tier={tier} isAr={isAr} size="xl" />
+                <HonorBadge rating={tier.presetScore} tier={tier} isAr={isAr} size="xl" showTooltip={false} />
 
                 {/* Alignment Info */}
                 <div className="flex-1 min-w-0 space-y-1.5">

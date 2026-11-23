@@ -71,11 +71,11 @@ export default function BadgePickerModal({
   };
 
   const categories = [
-    { id: 'all', labelAr: 'الكل (30)', labelEn: 'All (30)', icon: Sparkles },
-    { id: 'knowledge', labelAr: 'العلم والفقه (6)', labelEn: 'Knowledge & Fiqh', icon: BookOpen },
-    { id: 'valor', labelAr: 'الشجاعة والقيادة (8)', labelEn: 'Valor & Leadership', icon: Shield },
-    { id: 'guidance', labelAr: 'الهدى والروحانية (9)', labelEn: 'Guidance & Spirit', icon: Heart },
-    { id: 'civilization', labelAr: 'الحضارة والعلوم (7)', labelEn: 'Civilization & Science', icon: Compass },
+    { id: 'all', labelAr: 'الكل (60)', labelEn: 'All (60)', icon: Sparkles },
+    { id: 'knowledge', labelAr: 'العلم والفقه (15)', labelEn: 'Knowledge & Fiqh (15)', icon: BookOpen },
+    { id: 'valor', labelAr: 'الشجاعة والقيادة (15)', labelEn: 'Valor & Leadership (15)', icon: Shield },
+    { id: 'guidance', labelAr: 'الهدى والروحانية (15)', labelEn: 'Guidance & Spirit (15)', icon: Heart },
+    { id: 'civilization', labelAr: 'الحضارة والعلوم (15)', labelEn: 'Civilization & Science (15)', icon: Compass },
   ];
 
   return (
@@ -123,8 +123,8 @@ export default function BadgePickerModal({
               </div>
               <p className="text-xs text-slate-400 truncate">
                 {isAr
-                  ? `الشخصية المختارة: ${charName} (30 شارة فريدة بتقنية 3D)`
-                  : `Selected: ${charName} (30 unique 3D badges available)`}
+                  ? `الشخصية المختارة: ${charName} (60 شارة فريدة بتقنية 3D)`
+                  : `Selected: ${charName} (60 unique 3D badges available)`}
               </p>
             </div>
           </div>

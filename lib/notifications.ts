@@ -75,10 +75,10 @@ export const INITIAL_NOTIFICATIONS: AppNotificationItem[] = [
   {
     id: 'notif-badge-all-30',
     category: 'badge',
-    titleAr: '🎖️ تدشين 30 وساماً إسلامياً ثلاثي الأبعاد',
-    titleEn: '🎖️ 30 3D Islamic Badges Launched',
-    messageAr: 'أصبح بإمكان المشرف والزوار استعراض 30 وساماً ثلاثي الأبعاد مع تفاصيل المعاني التاريخية والتأثيرات الحركية.',
-    messageEn: 'All 30 3D Islamic honor badges are now live with animated effects and historical meanings.',
+    titleAr: '🎖️ تدشين 60 وساماً إسلامياً ثلاثي الأبعاد',
+    titleEn: '🎖️ 60 3D Islamic Badges Launched',
+    messageAr: 'أصبح بإمكان المشرف والزوار استعراض 60 وساماً ثلاثي الأبعاد مع تفاصيل المعاني التاريخية والتأثيرات الحركية.',
+    messageEn: 'All 60 3D Islamic honor badges are now live with animated effects and historical meanings.',
     timestamp: Date.now() - 1000 * 60 * 60 * 5, // 5 hours ago
     read: false,
   },
