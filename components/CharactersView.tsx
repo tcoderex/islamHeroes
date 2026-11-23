@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import {
   Plus,
   Trash2,
@@ -10,8 +11,6 @@ import {
   X,
   Check,
   ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
   Settings,
   Search,
   Database,
@@ -48,6 +47,18 @@ import AlignmentTiersModal from './AlignmentTiersModal';
 import RedXOverlay, { isRedXEligible, getRedXClarityPercent } from './RedXOverlay';
 import { convertNameToArabic, speakInArabic, stopArabicSpeech, hasArabicCharacters, getLocalizedCharacterName } from '@/lib/arabicTransliteration';
 import { parseImagePosition } from '@/lib/imagePosition';
+import {
+  QuickOrganizeBar,
+  CondensedPaginationBar,
+  QuickCategoryCounts,
+} from './ResponsiveControls';
+import {
+  ViewLayoutMode,
+  QuickCategoryFilter,
+  PageSizeOption,
+  CHENGUM_SPRING,
+  CHENGUM_BOUNCE,
+} from '@/lib/motionPresets';
 
 export interface CustomCharacter {
   id: string;
@@ -124,10 +135,12 @@ export default function CharactersView({
   const [isConvertingName, setIsConvertingName] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<SortOption>('rating-desc');
   const [tierFilter, setTierFilter] = useState<RatingTierKey | 'all'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<QuickCategoryFilter>('all');
+  const [viewMode, setViewMode] = useState<ViewLayoutMode>('grid');
+  const [pageSize, setPageSize] = useState<PageSizeOption>(12);
   const [isTierGuideOpen, setIsTierGuideOpen] = useState(false);
   const [focusedTierRating, setFocusedTierRating] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const ITEMS_PER_PAGE = 6;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -361,6 +374,36 @@ export default function CharactersView({
     setImgErrorMap((prev) => ({ ...prev, [id]: true }));
   };
 
+  useEffect(() => {
+    try {
+      const savedView = localStorage.getItem('heroes_view_mode');
+      if (savedView === 'grid' || savedView === 'compact' || savedView === 'list') {
+        setViewMode(savedView);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleViewModeChange = useCallback((mode: ViewLayoutMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('heroes_view_mode', mode);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const categoryCounts: QuickCategoryCounts = useMemo(() => {
+    return {
+      all: characters.length,
+      heaven: characters.filter((c) => c.rating >= 0).length,
+      hell: characters.filter((c) => c.rating < 0).length,
+      badged: characters.filter((c) => Boolean(c.badgeId)).length,
+      redx: characters.filter((c) => redXGlobalEnabled && isRedXEligible(c.rating) && !c.hideRedX).length,
+    };
+  }, [characters, redXGlobalEnabled]);
+
   // Filter and sort unified characters list from Supabase
   const filteredAndSortedCharacters = useMemo(() => {
     let list = [...characters];
@@ -373,6 +416,15 @@ export default function CharactersView({
         const descMatch = c.description ? c.description.toLowerCase().includes(q) : false;
         return nameMatch || descMatch;
       });
+    }
+    if (categoryFilter === 'heaven') {
+      list = list.filter((c) => c.rating >= 0);
+    } else if (categoryFilter === 'hell') {
+      list = list.filter((c) => c.rating < 0);
+    } else if (categoryFilter === 'badged') {
+      list = list.filter((c) => Boolean(c.badgeId));
+    } else if (categoryFilter === 'redx') {
+      list = list.filter((c) => redXGlobalEnabled && isRedXEligible(c.rating) && !c.hideRedX);
     }
     if (tierFilter !== 'all') {
       list = list.filter((c) => getRatingTier(c.rating).key === tierFilter);
@@ -387,7 +439,7 @@ export default function CharactersView({
       if (sortBy === 'name-desc') return nameB.localeCompare(nameA, isAr ? 'ar' : 'en');
       return 0;
     });
-  }, [characters, searchQuery, tierFilter, sortBy, isAr]);
+  }, [characters, searchQuery, categoryFilter, tierFilter, sortBy, isAr, redXGlobalEnabled]);
 
   const handleSortChange = (newSort: SortOption) => {
     setSortBy(newSort);
@@ -399,10 +451,11 @@ export default function CharactersView({
     setCurrentPage(1);
   };
 
-  const totalPages = Math.max(1, Math.ceil(filteredAndSortedCharacters.length / ITEMS_PER_PAGE));
+  const effectivePageSize = pageSize === 'all' ? Math.max(1, filteredAndSortedCharacters.length) : pageSize;
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedCharacters.length / effectivePageSize));
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
-  const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredAndSortedCharacters.length);
+  const startIndex = (safeCurrentPage - 1) * effectivePageSize;
+  const endIndex = Math.min(startIndex + effectivePageSize, filteredAndSortedCharacters.length);
   const paginatedCharacters = filteredAndSortedCharacters.slice(startIndex, endIndex);
 
   const isRamadan = theme === 'ramadan';
@@ -418,7 +471,7 @@ export default function CharactersView({
   }, [currentPage]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-[1440px] mx-auto space-y-6">
       {/* 1. UNIFIED PROMINENT SEARCH BAR */}
       <div className="w-full max-w-3xl mx-auto">
         <div className="relative group">
@@ -659,69 +712,56 @@ export default function CharactersView({
             <span>{isAr ? 'ترتيب حسب:' : 'Sort by:'}</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1">
-            <button
-              type="button"
-              onClick={() => handleSortChange('rating-desc')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                sortBy === 'rating-desc'
-                  ? isRamadan
-                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold shadow-2xs'
-                    : 'bg-[#0067c0] text-white shadow-2xs font-semibold'
-                  : isRamadan
-                    ? 'bg-[#122436] text-amber-200/70 hover:bg-[#172d42]'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {isAr ? 'الأعلى تقييماً (ملائكي ↓)' : 'Rating (High ↓)'}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSortChange('rating-asc')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                sortBy === 'rating-asc'
-                  ? isRamadan
-                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold shadow-2xs'
-                    : 'bg-[#0067c0] text-white shadow-2xs font-semibold'
-                  : isRamadan
-                    ? 'bg-[#122436] text-amber-200/70 hover:bg-[#172d42]'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {isAr ? 'الأقل تقييماً (شيطاني ↑)' : 'Rating (Low ↑)'}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSortChange('name-asc')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                sortBy === 'name-asc'
-                  ? isRamadan
-                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold shadow-2xs'
-                    : 'bg-[#0067c0] text-white shadow-2xs font-semibold'
-                  : isRamadan
-                    ? 'bg-[#122436] text-amber-200/70 hover:bg-[#172d42]'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {isAr ? 'الاسم (أ - ي)' : 'Name (A - Z)'}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSortChange('name-desc')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                sortBy === 'name-desc'
-                  ? isRamadan
-                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold shadow-2xs'
-                    : 'bg-[#0067c0] text-white shadow-2xs font-semibold'
-                  : isRamadan
-                    ? 'bg-[#122436] text-amber-200/70 hover:bg-[#172d42]'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {isAr ? 'الاسم (ي - أ)' : 'Name (Z - A)'}
-            </button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { id: 'rating-desc', ar: 'الأعلى تقييماً (ملائكي ↓)', en: 'Rating (High ↓)' },
+                { id: 'rating-asc', ar: 'الأقل تقييماً (شيطاني ↑)', en: 'Rating (Low ↑)' },
+                { id: 'name-asc', ar: 'الاسم (أ - ي)', en: 'Name (A - Z)' },
+                { id: 'name-desc', ar: 'الاسم (ي - أ)', en: 'Name (Z - A)' },
+              ] as const
+            ).map((opt) => (
+              <motion.button
+                key={opt.id}
+                type="button"
+                whileTap={{ scale: 0.94 }}
+                transition={CHENGUM_BOUNCE}
+                onClick={() => handleSortChange(opt.id)}
+                className={`min-h-[34px] px-2.5 py-1 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                  sortBy === opt.id
+                    ? isRamadan
+                      ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-bold shadow-2xs'
+                      : 'bg-[#0067c0] text-white shadow-2xs font-semibold'
+                    : isRamadan
+                      ? 'bg-[#122436] text-amber-200/70 hover:bg-[#172d42]'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {isAr ? opt.ar : opt.en}
+              </motion.button>
+            ))}
           </div>
         </div>
+
+        {/* Elastic Quick Category Filter + View Layout Switcher (Grid/Compact/List) + Page Size */}
+        <QuickOrganizeBar
+          idPrefix="admin"
+          categoryFilter={categoryFilter}
+          onCategoryChange={(cat) => {
+            setCategoryFilter(cat);
+            setCurrentPage(1);
+          }}
+          counts={categoryCounts}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+          pageSize={pageSize}
+          onPageSizeChange={(sz) => {
+            setPageSize(sz);
+            setCurrentPage(1);
+          }}
+          isAr={isAr}
+          theme={theme}
+        />
       </div>
 
       {/* 3. ADD / EDIT CHARACTER FORM MODAL */}
@@ -1233,8 +1273,8 @@ export default function CharactersView({
             <Sparkles className="w-4 h-4 text-amber-400 animate-spin duration-1000 shrink-0" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4 md:gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5 xl:gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={`admin-skel-${i}`}
                 className={`relative flex flex-col rounded-2xl md:rounded-3xl border overflow-hidden backdrop-blur-xl animate-pulse ${
@@ -1244,422 +1284,644 @@ export default function CharactersView({
                 }`}
               >
                 <div
-                  className={`relative w-full h-60 sm:h-68 md:h-76 lg:h-84 ${
+                  className={`relative w-full aspect-[4/3.6] sm:aspect-[4/4.1] ${
                     isRamadan ? 'bg-[#152738]' : 'bg-slate-200'
                   }`}
-                >
-                  <div
-                    className={`absolute top-3 left-3 w-16 h-6 rounded-full ${
-                      isRamadan ? 'bg-amber-400/20' : 'bg-slate-300'
-                    }`}
-                  />
-                  <div
-                    className={`absolute top-3 right-3 w-16 h-7 rounded-full ${
-                      isRamadan ? 'bg-amber-400/20' : 'bg-slate-300'
-                    }`}
-                  />
-                </div>
+                />
                 <div className="p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-3">
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div
-                        className={`h-5 w-2/3 rounded-lg ${
-                          isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'
-                        }`}
-                      />
-                      <div
-                        className={`h-7 w-7 rounded-lg ${
-                          isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'
-                        }`}
-                      />
-                    </div>
-                    <div
-                      className={`h-3.5 w-full rounded-md ${
-                        isRamadan ? 'bg-amber-400/10' : 'bg-slate-100'
-                      }`}
-                    />
-                    <div
-                      className={`h-3.5 w-4/5 rounded-md ${
-                        isRamadan ? 'bg-amber-400/10' : 'bg-slate-100'
-                      }`}
-                    />
+                    <div className={`h-5 w-2/3 rounded-lg ${isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'}`} />
+                    <div className={`h-3.5 w-full rounded-md ${isRamadan ? 'bg-amber-400/10' : 'bg-slate-100'}`} />
                   </div>
-                  <div
-                    className={`pt-3 border-t flex items-center justify-between ${
-                      isRamadan ? 'border-amber-500/15' : 'border-slate-100'
-                    }`}
-                  >
-                    <div
-                      className={`h-5 w-24 rounded-full ${
-                        isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'
-                      }`}
-                    />
-                    <div
-                      className={`h-4 w-12 rounded ${
-                        isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'
-                      }`}
-                    />
+                  <div className={`pt-3 border-t flex items-center justify-between ${isRamadan ? 'border-amber-500/15' : 'border-slate-100'}`}>
+                    <div className={`h-5 w-24 rounded-full ${isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'}`} />
+                    <div className={`h-4 w-12 rounded ${isRamadan ? 'bg-amber-400/20' : 'bg-slate-200'}`} />
                   </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4 md:gap-6">
-          {filteredAndSortedCharacters.length === 0 ? (
-            <div className="col-span-full py-12 text-center bg-white/70 dark:bg-black/30 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-6">
-              <p className="text-xs sm:text-sm text-slate-500 mb-3">
-                {searchQuery || activeTierFilterInfo
-                  ? isAr
-                    ? `لم يتم العثور على شخصيات مطابقة للتصفية الحالية`
-                    : `No figures found matching the active search/tier filter`
-                  : isAr
-                    ? 'لا توجد شخصيات حتى الآن'
-                    : 'No characters in database yet.'}
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {(searchQuery || tierFilter !== 'all') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleQueryChange('');
-                      setTierFilter('all');
-                      setCurrentPage(1);
-                    }}
-                    className="px-3.5 py-1.5 text-xs font-semibold text-[#0067c0] bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
-                  >
-                    {isAr ? 'عرض جميع الشخصيات' : 'Show All Figures'}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleStartAdd}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#0067c0] hover:bg-[#005fb8] rounded-xl transition-colors cursor-pointer"
-                >
-                  {isAr ? 'إضافة شخصية جديدة' : 'Add First Character'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            paginatedCharacters.map((char) => {
-              const hasError = imgErrorMap[char.id];
-              const charTier = getRatingTier(char.rating);
-
-            return (
-              <div
-                key={char.id}
-                onClick={() => onPreviewCharacter?.({ ...char, name: getLocalizedCharacterName(char.name, isAr) })}
-                className={`relative flex flex-col rounded-2xl md:rounded-3xl border overflow-hidden backdrop-blur-xl transition-all duration-300 group cursor-pointer active:scale-[0.99] hover:-translate-y-1.5 ${
-                  isRamadan
-                    ? 'bg-[#0f1e2c]/95 border-amber-500/25 shadow-[0_8px_30px_rgba(245,158,11,0.08)] hover:border-amber-400/60 hover:shadow-[0_16px_40px_rgba(245,158,11,0.2)]'
-                    : 'bg-white/95 border-slate-200/90 shadow-[0_8px_25px_rgba(0,103,192,0.06)] hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(0,103,192,0.14)]'
-                }`}
+      ) : filteredAndSortedCharacters.length === 0 ? (
+        <div className="py-12 text-center bg-white/80 dark:bg-black/30 rounded-3xl border border-dashed border-slate-200 dark:border-white/10 p-6">
+          <p className="text-xs sm:text-sm text-slate-500 mb-3">
+            {searchQuery || activeTierFilterInfo || categoryFilter !== 'all'
+              ? isAr
+                ? `لم يتم العثور على شخصيات مطابقة للتصفية الحالية`
+                : `No figures found matching the active search/tier filter`
+              : isAr
+                ? 'لا توجد شخصيات حتى الآن'
+                : 'No characters in database yet.'}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {(searchQuery || tierFilter !== 'all' || categoryFilter !== 'all') && (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.94 }}
+                transition={CHENGUM_BOUNCE}
+                onClick={() => {
+                  handleQueryChange('');
+                  setTierFilter('all');
+                  setCategoryFilter('all');
+                  setCurrentPage(1);
+                }}
+                className="min-h-[40px] px-4 py-2 text-xs font-bold text-[#0067c0] bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
               >
-                {/* Full-bleed Picture Frame: Picture covers the entire frame starting at the very top edge with ZERO black gap */}
-                <div className="relative w-full h-60 sm:h-68 md:h-76 lg:h-84 overflow-hidden shrink-0 select-none bg-slate-100">
-                  {char.picture && !hasError ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={char.picture}
-                      alt={char.name}
-                      onError={() => handleImageError(char.id)}
-                      referrerPolicy="no-referrer"
-                      style={parseImagePosition(char.imagePosition || '50% 20%')}
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div
-                      className={`absolute inset-0 w-full h-full flex flex-col items-center justify-center font-bold text-3xl sm:text-5xl select-none ${
-                        isRamadan
-                          ? 'bg-gradient-to-br from-[#122637] to-[#1a384f] text-amber-300'
-                          : 'bg-gradient-to-br from-slate-100 to-sky-100 text-sky-500'
-                      }`}
-                    >
-                      <span>{getLocalizedCharacterName(char.name, isAr).charAt(0).toUpperCase()}</span>
-                    </div>
-                  )}
-
-                  {/* Progressive Red X Overlay for ratings 0 to -1000 */}
-                  <RedXOverlay
-                    rating={char.rating}
-                    hidden={Boolean(char.hideRedX)}
-                    globalEnabled={redXGlobalEnabled}
-                    size="lg"
-                    className="z-10"
-                  />
-
-                  {/* 1. ON PICTURE TOP-LEFT: Alignment Crest Logo (Clickable -> 16 Tiers Explorer) */}
-                  <HonorBadge
-                    rating={char.rating}
-                    isAr={isAr}
-                    size="md"
-                    onClick={() => {
-                      setFocusedTierRating(char.rating);
-                      setIsTierGuideOpen(true);
-                    }}
-                    className="absolute top-3 left-3 sm:top-3.5 sm:left-3.5 z-20"
-                  />
-
-                  {/* 2. ON PICTURE TOP-RIGHT: Glowing Score Badge (Bigger) & Admin Actions */}
-                  <div
-                    className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 z-20 flex items-center gap-1.5"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <GlowingScoreBadge
-                      rating={char.rating}
-                      size="lg"
-                    />
-
-                    {isAdmin && (
-                      <div className="flex items-center gap-1 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-2xl border border-white/20 text-white shadow-lg">
-                        {isRedXEligible(char.rating) && onUpdateCharacter && (
-                          <button
-                            type="button"
-                            onClick={() => onUpdateCharacter({ ...char, hideRedX: !char.hideRedX })}
-                            className={`p-1 sm:p-1.5 rounded-xl transition-all cursor-pointer ${
-                              !char.hideRedX
-                                ? 'text-rose-400 hover:text-rose-100 hover:bg-rose-500/30'
-                                : 'text-slate-400 hover:text-white hover:bg-white/20'
-                            }`}
-                            title={
-                              !char.hideRedX
-                                ? isAr
-                                  ? 'إخفاء علامة X الحمراء لهذه الشخصية'
-                                  : 'Hide Red X for this character'
-                                : isAr
-                                  ? 'إظهار علامة X الحمراء لهذه الشخصية'
-                                  : 'Show Red X for this character'
-                            }
-                          >
-                            {!char.hideRedX ? (
-                              <Ban className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            ) : (
-                              <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            )}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setBadgePickerChar(char)}
-                          className="p-1 sm:p-1.5 rounded-xl text-emerald-400 hover:text-emerald-100 hover:bg-emerald-500/30 transition-all cursor-pointer"
-                          title={isAr ? 'اختيار شارة إسلامية (60 شارة)' : 'Choose Islamic badge (60 badges)'}
-                        >
-                          <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleStartReposition(char)}
-                          className="p-1 sm:p-1.5 rounded-xl text-amber-300 hover:text-amber-100 hover:bg-amber-500/30 transition-all cursor-pointer"
-                          title={isAr ? 'تحريك وضبط موضع الصورة' : 'Reposition picture'}
-                        >
-                          <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleStartEdit(char)}
-                          className="p-1 sm:p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
-                          title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
-                        >
-                          <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteCharacter(char.id)}
-                          className="p-1 sm:p-1.5 rounded-xl text-rose-300 hover:text-rose-100 hover:bg-rose-500/30 transition-all cursor-pointer"
-                          title={isAr ? 'حذف الشخصية' : 'Delete'}
-                        >
-                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 3. ON PICTURE BOTTOM-LEFT: Super 3D Animated Islamic Honor Badge */}
-                  {char.badgeId && (
-                    <Super3DBadge
-                      badgeId={char.badgeId}
-                      isAr={isAr}
-                      size="lg"
-                      className="absolute bottom-3 left-3 sm:bottom-3.5 sm:left-3.5 z-20 animate-[badge-float_4s_ease-in-out_infinite]"
-                      isAdmin={isAdmin}
-                      onClick={() => {
-                        if (isAdmin) {
-                          setBadgePickerChar(char);
-                        } else {
-                          setBadgeInfoChar(char);
-                        }
-                      }}
-                    />
-                  )}
-                </div>
-
-                {/* Character Details: Name, Description, and Tier */}
-                <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <h3
-                        className={`text-base sm:text-lg md:text-xl font-bold transition-colors truncate ${
-                          isRamadan
-                            ? 'text-amber-100 group-hover:text-amber-300'
-                            : 'text-slate-900 group-hover:text-[#0067c0]'
-                        }`}
-                      >
-                        {getLocalizedCharacterName(char.name, isAr)}
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleReadName(getLocalizedCharacterName(char.name, true), char.id);
-                        }}
-                        className={`p-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
-                          isSpeakingName === char.id
-                            ? 'bg-emerald-500 text-white animate-pulse'
-                            : isRamadan
-                              ? 'text-amber-300/70 hover:text-amber-200 hover:bg-white/10'
-                              : 'text-slate-400 hover:text-[#0067c0] hover:bg-blue-50'
-                        }`}
-                        title={isAr ? 'قراءة الاسم صوتياً بالعربية' : 'Pronounce name in Arabic'}
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {char.description ? (
-                      <p
-                        className={`text-xs sm:text-sm line-clamp-2 mt-1.5 leading-relaxed ${
-                          isRamadan ? 'text-amber-200/70' : 'text-slate-600'
-                        }`}
-                      >
-                        {char.description}
-                      </p>
-                    ) : (
-                      <p
-                        className={`text-xs mt-1.5 ${
-                          isRamadan ? 'text-amber-200/40' : 'text-slate-400'
-                        }`}
-                      >
-                        {isAr ? 'انقر لعرض تفاصيل الشخصية' : 'Click to view full preview'}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Bottom Status & Preview Hint */}
-                  <div
-                    className={`flex items-center justify-between pt-3 mt-4 border-t w-full text-xs ${
-                      isRamadan
-                        ? 'border-amber-500/20 text-amber-200/80'
-                        : 'border-slate-100 text-slate-500'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-semibold">
-                      <span className="text-[11px] text-slate-400 dark:text-slate-300">
-                        {isAr ? 'المرتبة:' : 'Tier:'}
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-xs shadow-2xs ${charTier.badgeGradient}`}
-                      >
-                        <TierIcon tierKey={charTier.key} tone="on-badge" className="w-3 h-3 shrink-0" />
-                        <span>{isAr ? charTier.nameAr : charTier.nameEn}</span>
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {/* Comments & Suggestions button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenComments?.(char);
-                        }}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 ${
-                          isRamadan
-                            ? 'bg-[#152e42] hover:bg-[#1c3c56] text-amber-300 border border-amber-500/40 shadow-amber-500/10'
-                            : 'bg-blue-50 hover:bg-blue-100 text-[#0067c0] border border-blue-200 shadow-blue-500/10'
-                        }`}
-                        title={isAr ? 'عرض تعليقات المستخدمين' : 'View user comments'}
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span className="hidden xs:inline sm:inline">
-                          {isAr ? 'التعليقات' : 'Comments'}
-                        </span>
-                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/60 dark:bg-black/40 font-mono">
-                          {commentsCounts[char.id] || 0}
-                        </span>
-                      </button>
-
-                      <span
-                        className={`inline-flex items-center gap-1 font-bold text-xs group-hover:underline ${
-                          isRamadan ? 'text-amber-300' : 'text-[#0067c0]'
-                        }`}
-                      >
-                        <span>{isAr ? 'معاينة' : 'Preview'}</span>
-                        <span className={isAr ? 'rotate-180' : ''}>→</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-      )}
-
-      {/* 5. PAGINATION CONTROLS */}
-      {filteredAndSortedCharacters.length > ITEMS_PER_PAGE && (
-        <div className="bg-white/95 dark:bg-[#0c1825]/95 backdrop-blur-xl border border-slate-200/90 dark:border-amber-500/30 p-3 sm:p-3.5 rounded-2xl shadow-[0_4px_16px_rgba(0,103,192,0.05)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="text-slate-500 dark:text-amber-200/70 font-medium text-[11px] sm:text-xs">
-            {isAr
-              ? `عرض ${startIndex + 1} - ${endIndex} من أصل ${filteredAndSortedCharacters.length} شخصية`
-              : `Showing ${startIndex + 1} - ${endIndex} of ${filteredAndSortedCharacters.length} figures`}
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
+                {isAr ? 'عرض جميع الشخصيات' : 'Show All Figures'}
+              </motion.button>
+            )}
+            <motion.button
               type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safeCurrentPage <= 1}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed text-slate-700 transition-all cursor-pointer font-medium text-xs shadow-2xs"
+              whileTap={{ scale: 0.94 }}
+              transition={CHENGUM_BOUNCE}
+              onClick={handleStartAdd}
+              className="min-h-[40px] px-4 py-2 text-xs font-bold text-white bg-[#0067c0] hover:bg-[#005fb8] rounded-xl transition-colors cursor-pointer"
             >
-              <ChevronLeft className={`w-3.5 h-3.5 ${isAr ? 'rotate-180' : ''}`} />
-              <span className="hidden sm:inline">{isAr ? 'السابق' : 'Prev'}</span>
-            </button>
-
-            <div className="flex items-center gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
-                const isActive = pageNum === safeCurrentPage;
-                return (
-                  <button
-                    key={pageNum}
-                    type="button"
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${
-                      isActive
-                        ? isRamadan
-                          ? 'bg-amber-400 text-slate-950 font-bold'
-                          : 'bg-[#0067c0] text-white shadow-xs'
-                        : 'bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50 shadow-2xs'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safeCurrentPage >= totalPages}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed text-slate-700 transition-all cursor-pointer font-medium text-xs shadow-2xs"
-            >
-              <span className="hidden sm:inline">{isAr ? 'التالي' : 'Next'}</span>
-              <ChevronRight className={`w-3.5 h-3.5 ${isAr ? 'rotate-180' : ''}`} />
-            </button>
+              {isAr ? 'إضافة شخصية جديدة' : 'Add First Character'}
+            </motion.button>
           </div>
         </div>
+      ) : (
+        <LayoutGroup id="admin-characters-layout">
+          <motion.div
+            layout
+            transition={CHENGUM_SPRING}
+            className={
+              viewMode === 'list'
+                ? 'flex flex-col gap-3'
+                : viewMode === 'compact'
+                  ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5'
+                  : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5 xl:gap-6'
+            }
+          >
+            <AnimatePresence mode="popLayout">
+              {paginatedCharacters.map((char) => {
+                const hasError = imgErrorMap[char.id];
+                const charTier = getRatingTier(char.rating);
+                const localizedName = getLocalizedCharacterName(char.name, isAr);
+
+                if (viewMode === 'list') {
+                  return (
+                    <motion.div
+                      key={char.id}
+                      layout
+                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      whileHover={{ scale: 1.008, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={CHENGUM_SPRING}
+                      onClick={() => onPreviewCharacter?.({ ...char, name: localizedName })}
+                      className={`relative flex flex-row items-center gap-3 sm:gap-4 p-3 sm:p-3.5 rounded-2xl border backdrop-blur-xl group cursor-pointer ${
+                        isRamadan
+                          ? 'bg-[#0f1e2c]/95 border-amber-500/25 shadow-sm hover:border-amber-400/60'
+                          : 'bg-white/95 border-slate-200/90 shadow-xs hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl sm:rounded-2xl overflow-hidden shrink-0 select-none bg-slate-100 border border-white/20">
+                        {char.picture && !hasError ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={char.picture}
+                            alt={char.name}
+                            onError={() => handleImageError(char.id)}
+                            referrerPolicy="no-referrer"
+                            style={parseImagePosition(char.imagePosition || '50% 20%')}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div
+                            className={`w-full h-full flex items-center justify-center font-bold text-2xl ${
+                              isRamadan ? 'bg-[#152738] text-amber-300' : 'bg-sky-100 text-sky-600'
+                            }`}
+                          >
+                            {localizedName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <RedXOverlay
+                          rating={char.rating}
+                          hidden={Boolean(char.hideRedX)}
+                          globalEnabled={redXGlobalEnabled}
+                          size="sm"
+                          className="z-10"
+                        />
+                        {char.badgeId && (
+                          <Super3DBadge
+                            badgeId={char.badgeId}
+                            isAr={isAr}
+                            size="sm"
+                            className="absolute bottom-1 left-1 z-20"
+                            isAdmin={isAdmin}
+                            onClick={() => (isAdmin ? setBadgePickerChar(char) : setBadgeInfoChar(char))}
+                          />
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <HonorBadge
+                              rating={char.rating}
+                              isAr={isAr}
+                              size="xs"
+                              onClick={() => {
+                                setFocusedTierRating(char.rating);
+                                setIsTierGuideOpen(true);
+                              }}
+                            />
+                            <h3 className={`text-sm sm:text-base font-bold truncate ${isRamadan ? 'text-amber-100' : 'text-slate-900'}`}>
+                              {localizedName}
+                            </h3>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReadName(getLocalizedCharacterName(char.name, true), char.id);
+                              }}
+                              className={`p-1.5 rounded-lg cursor-pointer shrink-0 ${
+                                isSpeakingName === char.id
+                                  ? 'bg-emerald-500 text-white animate-pulse'
+                                  : isRamadan
+                                    ? 'text-amber-300/75 hover:bg-white/10'
+                                    : 'text-slate-400 hover:text-[#0067c0] hover:bg-blue-50'
+                              }`}
+                              title={isAr ? 'قراءة الاسم صوتياً بالعربية' : 'Pronounce name in Arabic'}
+                            >
+                              <Volume2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <GlowingScoreBadge rating={char.rating} size="sm" />
+                        </div>
+
+                        {char.description && (
+                          <p className={`text-xs line-clamp-1 ${isRamadan ? 'text-amber-200/70' : 'text-slate-500'}`}>
+                            {char.description}
+                          </p>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[11px] ${charTier.badgeGradient}`}>
+                            <TierIcon tierKey={charTier.key} tone="on-badge" className="w-3 h-3 shrink-0" />
+                            <span>{isAr ? charTier.nameAr : charTier.nameEn}</span>
+                          </span>
+
+                          <div className="flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => onOpenComments?.(char)}
+                              className={`min-h-[32px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl font-bold text-[11px] cursor-pointer border ${
+                                isRamadan
+                                  ? 'bg-[#152e42] text-amber-300 border-amber-500/35'
+                                  : 'bg-blue-50 text-[#0067c0] border-blue-200'
+                              }`}
+                            >
+                              <MessageSquare className="w-3 h-3" />
+                              <span className="font-mono">{commentsCounts[char.id] || 0}</span>
+                            </button>
+
+                            {isAdmin && (
+                              <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-white/15 text-white">
+                                {isRedXEligible(char.rating) && onUpdateCharacter && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onUpdateCharacter({ ...char, hideRedX: !char.hideRedX })}
+                                    className={`p-1 rounded-lg cursor-pointer ${
+                                      !char.hideRedX ? 'text-rose-400 hover:bg-rose-500/30' : 'text-slate-400 hover:bg-white/20'
+                                    }`}
+                                    title={isAr ? 'تبديل علامة X' : 'Toggle Red X'}
+                                  >
+                                    {!char.hideRedX ? <Ban className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setBadgePickerChar(char)}
+                                  className="p-1 rounded-lg text-emerald-400 hover:bg-emerald-500/30 cursor-pointer"
+                                  title={isAr ? 'الوسام' : 'Badge'}
+                                >
+                                  <Award className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartReposition(char)}
+                                  className="p-1 rounded-lg text-amber-300 hover:bg-amber-500/30 cursor-pointer"
+                                  title={isAr ? 'تحريك' : 'Reposition'}
+                                >
+                                  <Move className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEdit(char)}
+                                  className="p-1 rounded-lg text-slate-300 hover:bg-white/20 cursor-pointer"
+                                  title={isAr ? 'تعديل' : 'Edit'}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onDeleteCharacter(char.id)}
+                                  className="p-1 rounded-lg text-rose-300 hover:bg-rose-500/30 cursor-pointer"
+                                  title={isAr ? 'حذف' : 'Delete'}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                if (viewMode === 'compact') {
+                  return (
+                    <motion.div
+                      key={char.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.92 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      whileHover={{ y: -4, scale: 1.02 }}
+                      whileTap={{ scale: 0.95 }}
+                      transition={CHENGUM_SPRING}
+                      onClick={() => onPreviewCharacter?.({ ...char, name: localizedName })}
+                      className={`relative flex flex-col rounded-2xl border overflow-hidden backdrop-blur-xl group cursor-pointer ${
+                        isRamadan
+                          ? 'bg-[#0f1e2c]/95 border-amber-500/25 hover:border-amber-400/60'
+                          : 'bg-white/95 border-slate-200/90 hover:border-blue-300 shadow-xs'
+                      }`}
+                    >
+                      <div className="relative w-full aspect-square overflow-hidden select-none bg-slate-100">
+                        {char.picture && !hasError ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={char.picture}
+                            alt={char.name}
+                            onError={() => handleImageError(char.id)}
+                            referrerPolicy="no-referrer"
+                            style={parseImagePosition(char.imagePosition || '50% 20%')}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div
+                            className={`absolute inset-0 flex items-center justify-center font-bold text-2xl ${
+                              isRamadan ? 'bg-[#152738] text-amber-300' : 'bg-sky-100 text-sky-600'
+                            }`}
+                          >
+                            {localizedName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <RedXOverlay
+                          rating={char.rating}
+                          hidden={Boolean(char.hideRedX)}
+                          globalEnabled={redXGlobalEnabled}
+                          size="md"
+                          className="z-10"
+                        />
+                        <HonorBadge
+                          rating={char.rating}
+                          isAr={isAr}
+                          size="xs"
+                          onClick={() => {
+                            setFocusedTierRating(char.rating);
+                            setIsTierGuideOpen(true);
+                          }}
+                          className="absolute top-2 left-2 z-20"
+                        />
+                        <div className="absolute top-2 right-2 z-20 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <GlowingScoreBadge rating={char.rating} size="sm" />
+                        </div>
+                        {char.badgeId && (
+                          <Super3DBadge
+                            badgeId={char.badgeId}
+                            isAr={isAr}
+                            size="sm"
+                            className="absolute bottom-2 left-2 z-20"
+                            isAdmin={isAdmin}
+                            onClick={() => (isAdmin ? setBadgePickerChar(char) : setBadgeInfoChar(char))}
+                          />
+                        )}
+                      </div>
+                      <div className="p-2.5 sm:p-3 space-y-1.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <h3 className={`text-xs sm:text-sm font-bold truncate ${isRamadan ? 'text-amber-100' : 'text-slate-900'}`}>
+                            {localizedName}
+                          </h3>
+                          {isAdmin && (
+                            <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEdit(char)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-[#0067c0] cursor-pointer"
+                                title={isAr ? 'تعديل' : 'Edit'}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onDeleteCharacter(char.id)}
+                                className="p-1 rounded-lg text-rose-400 hover:text-rose-600 cursor-pointer"
+                                title={isAr ? 'حذف' : 'Delete'}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between gap-1 text-[10px]">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold truncate ${charTier.badgeGradient}`}>
+                            <TierIcon tierKey={charTier.key} tone="on-badge" className="w-2.5 h-2.5 shrink-0" />
+                            <span className="truncate">{(isAr ? charTier.nameAr : charTier.nameEn).split(' / ')[0]}</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenComments?.(char);
+                            }}
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg bg-blue-500/10 text-[#0067c0] dark:text-amber-300 font-mono font-bold cursor-pointer shrink-0"
+                          >
+                            <MessageSquare className="w-2.5 h-2.5" />
+                            <span>{commentsCounts[char.id] || 0}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                // Default Grid view
+                return (
+                  <motion.div
+                    key={char.id}
+                    layout
+                    initial={{ opacity: 0, y: 14, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.92 }}
+                    whileHover={{ y: -5, scale: 1.015 }}
+                    whileTap={{ scale: 0.965 }}
+                    transition={CHENGUM_SPRING}
+                    onClick={() => onPreviewCharacter?.({ ...char, name: localizedName })}
+                    className={`relative flex flex-col rounded-2xl md:rounded-3xl border overflow-hidden backdrop-blur-xl group cursor-pointer ${
+                      isRamadan
+                        ? 'bg-[#0f1e2c]/95 border-amber-500/25 shadow-[0_8px_30px_rgba(245,158,11,0.08)] hover:border-amber-400/60 hover:shadow-[0_16px_40px_rgba(245,158,11,0.2)]'
+                        : 'bg-white/95 border-slate-200/90 shadow-[0_8px_25px_rgba(0,103,192,0.06)] hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(0,103,192,0.14)]'
+                    }`}
+                  >
+                    {/* Responsive Full-bleed Picture Frame */}
+                    <div className="relative w-full aspect-[4/3.6] sm:aspect-[4/4.1] overflow-hidden shrink-0 select-none bg-slate-100">
+                      {char.picture && !hasError ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={char.picture}
+                          alt={char.name}
+                          onError={() => handleImageError(char.id)}
+                          referrerPolicy="no-referrer"
+                          style={parseImagePosition(char.imagePosition || '50% 20%')}
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div
+                          className={`absolute inset-0 w-full h-full flex flex-col items-center justify-center font-bold text-3xl sm:text-5xl select-none ${
+                            isRamadan
+                              ? 'bg-gradient-to-br from-[#122637] to-[#1a384f] text-amber-300'
+                              : 'bg-gradient-to-br from-slate-100 to-sky-100 text-sky-500'
+                          }`}
+                        >
+                          <span>{localizedName.charAt(0).toUpperCase()}</span>
+                        </div>
+                      )}
+
+                      <RedXOverlay
+                        rating={char.rating}
+                        hidden={Boolean(char.hideRedX)}
+                        globalEnabled={redXGlobalEnabled}
+                        size="lg"
+                        className="z-10"
+                      />
+
+                      <HonorBadge
+                        rating={char.rating}
+                        isAr={isAr}
+                        size="md"
+                        onClick={() => {
+                          setFocusedTierRating(char.rating);
+                          setIsTierGuideOpen(true);
+                        }}
+                        className="absolute top-3 left-3 sm:top-3.5 sm:left-3.5 z-20"
+                      />
+
+                      <div
+                        className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 z-20 flex items-center gap-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <GlowingScoreBadge rating={char.rating} size="lg" />
+
+                        {isAdmin && (
+                          <div className="flex items-center gap-1 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-2xl border border-white/20 text-white shadow-lg">
+                            {isRedXEligible(char.rating) && onUpdateCharacter && (
+                              <button
+                                type="button"
+                                onClick={() => onUpdateCharacter({ ...char, hideRedX: !char.hideRedX })}
+                                className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                                  !char.hideRedX
+                                    ? 'text-rose-400 hover:text-rose-100 hover:bg-rose-500/30'
+                                    : 'text-slate-400 hover:text-white hover:bg-white/20'
+                                }`}
+                                title={
+                                  !char.hideRedX
+                                    ? isAr
+                                      ? 'إخفاء علامة X الحمراء لهذه الشخصية'
+                                      : 'Hide Red X for this character'
+                                    : isAr
+                                      ? 'إظهار علامة X الحمراء لهذه الشخصية'
+                                      : 'Show Red X for this character'
+                                }
+                              >
+                                {!char.hideRedX ? (
+                                  <Ban className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                )}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setBadgePickerChar(char)}
+                              className="p-1.5 rounded-xl text-emerald-400 hover:text-emerald-100 hover:bg-emerald-500/30 transition-all cursor-pointer"
+                              title={isAr ? 'اختيار شارة إسلامية (60 شارة)' : 'Choose Islamic badge (60 badges)'}
+                            >
+                              <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStartReposition(char)}
+                              className="p-1.5 rounded-xl text-amber-300 hover:text-amber-100 hover:bg-amber-500/30 transition-all cursor-pointer"
+                              title={isAr ? 'تحريك وضبط موضع الصورة' : 'Reposition picture'}
+                            >
+                              <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(char)}
+                              className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
+                              title={isAr ? 'تعديل بيانات الشخصية' : 'Edit character'}
+                            >
+                              <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteCharacter(char.id)}
+                              className="p-1.5 rounded-xl text-rose-300 hover:text-rose-100 hover:bg-rose-500/30 transition-all cursor-pointer"
+                              title={isAr ? 'حذف الشخصية' : 'Delete'}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {char.badgeId && (
+                        <Super3DBadge
+                          badgeId={char.badgeId}
+                          isAr={isAr}
+                          size="lg"
+                          className="absolute bottom-3 left-3 sm:bottom-3.5 sm:left-3.5 z-20 animate-[badge-float_4s_ease-in-out_infinite]"
+                          isAdmin={isAdmin}
+                          onClick={() => {
+                            if (isAdmin) {
+                              setBadgePickerChar(char);
+                            } else {
+                              setBadgeInfoChar(char);
+                            }
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Card Details */}
+                    <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3
+                            className={`text-base sm:text-lg font-bold transition-colors truncate ${
+                              isRamadan
+                                ? 'text-amber-100 group-hover:text-amber-300'
+                                : 'text-slate-900 group-hover:text-[#0067c0]'
+                            }`}
+                          >
+                            {localizedName}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReadName(getLocalizedCharacterName(char.name, true), char.id);
+                            }}
+                            className={`min-w-[34px] min-h-[34px] p-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center justify-center ${
+                              isSpeakingName === char.id
+                                ? 'bg-emerald-500 text-white animate-pulse'
+                                : isRamadan
+                                  ? 'text-amber-300/70 hover:text-amber-200 hover:bg-white/10'
+                                  : 'text-slate-400 hover:text-[#0067c0] hover:bg-blue-50'
+                            }`}
+                            title={isAr ? 'قراءة الاسم صوتياً بالعربية' : 'Pronounce name in Arabic'}
+                          >
+                            <Volume2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {char.description ? (
+                          <p
+                            className={`text-xs sm:text-sm line-clamp-2 mt-1.5 leading-relaxed ${
+                              isRamadan ? 'text-amber-200/70' : 'text-slate-600'
+                            }`}
+                          >
+                            {char.description}
+                          </p>
+                        ) : (
+                          <p
+                            className={`text-xs mt-1.5 ${
+                              isRamadan ? 'text-amber-200/40' : 'text-slate-400'
+                            }`}
+                          >
+                            {isAr ? 'انقر لعرض تفاصيل الشخصية' : 'Click to view full preview'}
+                          </p>
+                        )}
+                      </div>
+
+                      <div
+                        className={`flex items-center justify-between gap-2 pt-3 mt-4 border-t w-full text-xs ${
+                          isRamadan
+                            ? 'border-amber-500/20 text-amber-200/80'
+                            : 'border-slate-100 text-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-semibold min-w-0">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-xs shadow-2xs truncate ${charTier.badgeGradient}`}
+                          >
+                            <TierIcon tierKey={charTier.key} tone="on-badge" className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{isAr ? charTier.nameAr : charTier.nameEn}</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenComments?.(char);
+                            }}
+                            className={`min-h-[34px] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                              isRamadan
+                                ? 'bg-[#152e42] hover:bg-[#1c3c56] text-amber-300 border border-amber-500/40 shadow-amber-500/10'
+                                : 'bg-blue-50 hover:bg-blue-100 text-[#0067c0] border border-blue-200 shadow-blue-500/10'
+                            }`}
+                            title={isAr ? 'عرض تعليقات المستخدمين' : 'View user comments'}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span className="hidden xs:inline sm:inline">
+                              {isAr ? 'التعليقات' : 'Comments'}
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/60 dark:bg-black/40 font-mono">
+                              {commentsCounts[char.id] || 0}
+                            </span>
+                          </button>
+
+                          <span
+                            className={`inline-flex items-center gap-1 font-bold text-xs group-hover:underline ${
+                              isRamadan ? 'text-amber-300' : 'text-[#0067c0]'
+                            }`}
+                          >
+                            <span>{isAr ? 'معاينة' : 'Preview'}</span>
+                            <span className={isAr ? 'rotate-180' : ''}>→</span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </motion.div>
+        </LayoutGroup>
+      )}
+
+      {/* 5. CONDENSED PAGINATION CONTROLS */}
+      {filteredAndSortedCharacters.length > effectivePageSize && (
+        <CondensedPaginationBar
+          currentPage={safeCurrentPage}
+          totalPages={totalPages}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          totalCount={filteredAndSortedCharacters.length}
+          onPageChange={setCurrentPage}
+          isAr={isAr}
+          theme={theme}
+        />
       )}
 
       {/* Reposition Picture Modal */}

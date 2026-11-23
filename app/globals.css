@@ -11,11 +11,33 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
     text-rendering: optimizeLegibility;
+    overflow-x: clip;
   }
 
-  /* Samsung A40 / Android WebKit form control font family inheritance fix */
+  /* Samsung A40 / Android WebKit form control font family inheritance fix + instant touch feedback */
   input, textarea, select, button {
     font-family: var(--font-arabic-sans);
+  }
+
+  button, a, [role="button"], input, select {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Smooth inertial horizontal scroll strips with hidden scrollbar */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
   }
 }
 

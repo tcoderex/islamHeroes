@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import { CHENGUM_SHEET } from '@/lib/motionPresets';
 import {
   X,
   Mail,
@@ -105,18 +107,21 @@ export default function ContactChoicesModal({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md p-3 sm:p-6 animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md p-0 sm:p-5 flex items-end sm:items-center justify-center"
       onClick={onClose}
     >
-      <div className="flex min-h-full items-center justify-center p-2 sm:p-4">
-        <div
-          className={`relative w-full max-w-md rounded-3xl border shadow-2xl overflow-hidden flex flex-col my-auto transition-all ${
-            isRamadan
-              ? 'bg-[#0b1724] border-amber-500/40 text-amber-50 shadow-[0_20px_60px_rgba(245,158,11,0.18)]'
-              : 'bg-white border-slate-200 text-slate-900 shadow-[0_20px_60px_rgba(0,103,192,0.15)]'
-          }`}
-          onClick={(e) => e.stopPropagation()}
-        >
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={CHENGUM_SHEET}
+        className={`relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] ${
+          isRamadan
+            ? 'bg-[#0b1724] border-amber-500/40 text-amber-50 shadow-[0_20px_60px_rgba(245,158,11,0.18)]'
+            : 'bg-white border-slate-200 text-slate-900 shadow-[0_20px_60px_rgba(0,103,192,0.15)]'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sm:hidden w-10 h-1 rounded-full bg-slate-400/40 mx-auto mt-2.5 shrink-0" aria-hidden="true" />
           {isRamadan && (
             <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
           )}
@@ -520,8 +525,7 @@ export default function ContactChoicesModal({
               {isAr ? 'إغلاق' : 'Close'}
             </button>
           </div>
-        </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

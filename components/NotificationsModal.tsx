@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion } from 'motion/react';
+import { CHENGUM_SHEET } from '@/lib/motionPresets';
 import {
   X,
   Bell,
@@ -159,19 +161,23 @@ export default function NotificationsModal({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-5 bg-slate-950/80 backdrop-blur-md"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={CHENGUM_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden font-sans animate-in zoom-in-95 duration-200 ${
+        className={`relative w-full sm:max-w-2xl max-h-[92dvh] flex flex-col rounded-t-3xl sm:rounded-3xl border shadow-2xl overflow-hidden font-sans ${
           isRamadan
             ? 'bg-gradient-to-b from-slate-900 via-[#0a1827] to-slate-950 border-amber-500/30 text-white shadow-amber-500/10'
             : 'bg-white dark:bg-[#0c1825] border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white'
         }`}
       >
+        <div className="sm:hidden w-10 h-1 rounded-full bg-slate-400/40 mx-auto mt-2.5 shrink-0" aria-hidden="true" />
         {/* Top Header */}
         <div
           className={`p-4 sm:p-5 border-b flex items-center justify-between gap-3 shrink-0 ${
@@ -542,7 +548,7 @@ export default function NotificationsModal({
             </button>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

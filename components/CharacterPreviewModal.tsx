@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { X, Clock, Volume2, MessageSquare, Crown, Skull, Compass, Sun, Flame } from 'lucide-react';
 import { getRatingTier, TierIcon, formatTierRange } from '@/lib/ratingTiers';
+import { CHENGUM_SHEET } from '@/lib/motionPresets';
 import HonorBadge from '@/components/HonorBadge';
 import GlowingScoreBadge from '@/components/GlowingScoreBadge';
 import Super3DBadge from '@/components/Super3DBadge';
@@ -93,21 +95,25 @@ export default function CharacterPreviewModal({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className={`fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-5 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto ${
+      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-5 backdrop-blur-md overflow-y-auto overscroll-contain ${
         isHeaven
-          ? 'bg-sky-950/70'
-          : 'bg-rose-950/80'
+          ? 'bg-sky-950/75'
+          : 'bg-rose-950/82'
       }`}
       onClick={handleClose}
     >
-      <div
-        className={`relative w-full max-w-sm sm:max-w-lg md:max-w-3xl lg:max-w-4xl rounded-3xl border overflow-hidden my-auto max-h-[93vh] flex flex-col md:flex-row transition-all ${
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={CHENGUM_SHEET}
+        className={`relative w-full sm:max-w-lg md:max-w-3xl lg:max-w-4xl rounded-t-3xl sm:rounded-3xl border overflow-hidden sm:my-auto max-h-[92dvh] flex flex-col md:flex-row ${
           isHeaven
             ? 'border-sky-300/45 shadow-[0_28px_80px_rgba(14,165,233,0.35)] bg-slate-950'
             : 'border-rose-500/45 shadow-[0_28px_80px_rgba(225,29,72,0.42)] bg-[#110506]'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="sm:hidden w-10 h-1 rounded-full bg-white/30 mx-auto mt-2.5 mb-0.5 shrink-0 relative z-30" aria-hidden="true" />
         {/* Full-Card Heaven / Hell Environmental Backdrop Layer */}
         <div
           className="absolute inset-0 bg-cover bg-center pointer-events-none select-none"
@@ -439,7 +445,7 @@ export default function CharacterPreviewModal({
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* 3D Badge Information Modal */}
       {character.badgeId && (

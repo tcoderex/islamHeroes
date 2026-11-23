@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { motion } from 'motion/react';
 import { X, Award, Sparkles, BookOpen, User, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { CHENGUM_SHEET } from '@/lib/motionPresets';
 import { getCharacterBadge, CharacterBadge } from '@/lib/characterBadges';
 import Super3DBadge from './Super3DBadge';
 
@@ -62,17 +64,21 @@ export default function BadgeInfoModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="badge-info-title"
     >
-      <div
+      <motion.div
         dir={isAr ? 'rtl' : 'ltr'}
+        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={CHENGUM_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 via-[#0d1c2d] to-slate-950 border border-amber-500/30 text-white shadow-[0_25px_60px_rgba(0,0,0,0.9)] animate-in zoom-in-95 duration-200"
+        className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-gradient-to-b from-slate-900 via-[#0d1c2d] to-slate-950 border border-amber-500/30 text-white shadow-[0_25px_60px_rgba(0,0,0,0.9)]"
       >
+        <div className="sm:hidden w-10 h-1 rounded-full bg-white/25 mx-auto mt-2.5 shrink-0" aria-hidden="true" />
         {/* Top Decorative Ambient Glow */}
         <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-amber-500/20 via-yellow-500/5 to-transparent pointer-events-none" />
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full bg-amber-400/15 blur-3xl pointer-events-none" />
@@ -209,7 +215,7 @@ export default function BadgeInfoModal({
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

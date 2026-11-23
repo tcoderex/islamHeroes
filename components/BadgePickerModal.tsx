@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { motion } from 'motion/react';
+import { CHENGUM_SHEET } from '@/lib/motionPresets';
 import {
   X,
   Award,
@@ -81,13 +83,17 @@ export default function BadgePickerModal({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-y-auto"
       onClick={onClose}
     >
-      <div
-        className="relative w-full max-w-4xl my-auto rounded-3xl bg-slate-900 border border-slate-800 text-slate-100 shadow-[0_24px_70px_rgba(0,0,0,0.85)] p-4 sm:p-6 space-y-4 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={CHENGUM_SHEET}
+        className="relative w-full sm:max-w-4xl sm:my-auto rounded-t-3xl sm:rounded-3xl bg-slate-900 border border-slate-800 text-slate-100 shadow-[0_24px_70px_rgba(0,0,0,0.85)] p-4 sm:p-6 space-y-4 max-h-[92dvh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="sm:hidden w-10 h-1 rounded-full bg-white/25 mx-auto shrink-0" aria-hidden="true" />
         {/* Header with Character Mini Portrait & Close */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3.5 shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
@@ -263,7 +269,7 @@ export default function BadgePickerModal({
             {isAr ? 'إلغاء' : 'Cancel'}
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

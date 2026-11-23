@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion } from 'motion/react';
+import { CHENGUM_SHEET } from '@/lib/motionPresets';
 import {
   X,
   MessageSquare,
@@ -368,18 +370,21 @@ export default function CommentsModal({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md p-3 sm:p-6 animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md p-0 sm:p-5 flex items-end sm:items-center justify-center"
       onClick={onClose}
     >
-      <div className="flex min-h-full items-center justify-center p-3 sm:p-4">
-        <div
-          className={`relative w-full max-w-xl border rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh] transition-all text-left ${
-            isRamadan
-              ? 'border-slate-700/80 bg-[#0a1520] text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.6)]'
-              : 'border-slate-200 bg-white text-slate-900 shadow-[0_20px_60px_rgba(0,103,192,0.12)]'
-          }`}
-          onClick={(e) => e.stopPropagation()}
-        >
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={CHENGUM_SHEET}
+        className={`relative w-full sm:max-w-xl border rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] text-left ${
+          isRamadan
+            ? 'border-slate-700/80 bg-[#0a1520] text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.6)]'
+            : 'border-slate-200 bg-white text-slate-900 shadow-[0_20px_60px_rgba(0,103,192,0.12)]'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sm:hidden w-10 h-1 rounded-full bg-slate-400/40 mx-auto mt-2.5 shrink-0" aria-hidden="true" />
         {/* Header */}
         <div
           className={`p-3.5 sm:p-4 border-b flex items-center justify-between gap-3 ${
@@ -696,8 +701,7 @@ export default function CommentsModal({
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
-  </div>
 );
 }

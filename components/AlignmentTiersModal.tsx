@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { X, Compass, Sun, Scale, Flame, Layers, Check } from 'lucide-react';
+import { CHENGUM_SHEET } from '@/lib/motionPresets';
 import {
   RATING_TIERS,
   RatingTierInfo,
@@ -86,19 +88,23 @@ export default function AlignmentTiersModal({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150"
+      className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-5 bg-slate-950/80 backdrop-blur-md"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={CHENGUM_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 ${
+        className={`relative w-full sm:max-w-4xl max-h-[92dvh] flex flex-col rounded-t-3xl sm:rounded-3xl border shadow-2xl overflow-hidden ${
           isRamadan
             ? 'bg-[#091522] border-amber-500/35 text-amber-50 shadow-[0_24px_70px_rgba(0,0,0,0.85)]'
             : 'bg-white border-slate-200 text-slate-900 shadow-[0_24px_70px_rgba(0,103,192,0.2)]'
         }`}
       >
+        <div className="sm:hidden w-10 h-1 rounded-full bg-slate-400/40 mx-auto mt-2.5 shrink-0" aria-hidden="true" />
         {/* Header */}
         <div
           className={`p-4 sm:p-5 border-b flex items-center justify-between gap-3 shrink-0 ${
@@ -344,7 +350,7 @@ export default function AlignmentTiersModal({
             {isAr ? 'إغلاق' : 'Close'}
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
